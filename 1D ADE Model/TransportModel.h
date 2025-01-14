@@ -32,14 +32,11 @@ using std::chrono::milliseconds;
 #define PCOEF 1008
 #define RTCOEF 1009
 #define K_FWD 1010
-#define KL_FWD 1011
-#define SMAX 1012
-#define HYSTERESIS 1013
-#define KF_FWD 1014
-#define NF_FWD 1015
-#define SOLNDEG 1016
-#define SOLIDDEG_EQ 1017
-#define SOLIDDEG_KIN 1018
+#define SMAX 1011
+#define HYSTERESIS 1012
+#define SOLNDEG 1013
+#define SOLIDDEG_EQ 1014
+#define SOLIDDEG_KIN 1015
 
 namespace ntrans 
 {
@@ -264,6 +261,7 @@ namespace ntrans
 		bool scheduleStop{ false };
 		bool usePoreVols{ false };
 		bool stopCustomLoop{ false };
+		bool noObsData{ false };
 
 	};
 

@@ -1328,6 +1328,377 @@ void ntrans::TransportUI::SaveDataWindow()
     }
 }
 
+void ntrans::TransportUI::ScenarioWindow()
+{
+    if (ImGui::Begin("Define Scenarios", &uiEvents.showScenarioWindow, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse)) {
+        ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
+        if (ImGui::BeginTable("##scenarioTable", paramsNames.size(), flags)) {
+
+            for (int i{ 0 }; i < paramsNames.size(); i++) {
+                if (i > 0) {
+                    ImGui::TableSetupColumn(paramsNames[i].c_str(), ImGuiTableColumnFlags_WidthFixed, 250.0f);
+                }
+                else {
+                    ImGui::TableSetupColumn(paramsNames[i].c_str(), ImGuiTableColumnFlags_WidthFixed, 100.0f);
+                }
+
+            }
+
+            ImGui::TableHeadersRow();
+
+            for (int i{ 0 }; i < scenarioInputData.size(); i++) {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text(std::to_string(i + 1).c_str());
+                for (int j{ 1 }; j < paramsNames.size(); j++) {
+                    ImGui::TableSetColumnIndex(j);
+                    std::string itemId = "##" + std::to_string(i) + "_" + std::to_string(j);
+                    ImGui::SetNextItemWidth(250.0f);
+                    ImGui::InputText(itemId.c_str(), &scenarioInputData[i][j - (size_t)1], ImGuiInputTextFlags_CharsDecimal);
+                }
+            }
+
+            ImGui::EndTable();
+        }
+        if (ImGui::Button("New row")) {
+            std::vector<std::string> oneRow{};
+            for (int j{ 0 }; j < paramsNames.size() - 1; j++) {
+                oneRow.push_back(std::string());
+            }
+            scenarioInputData.push_back(oneRow);
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Save Scenarios")) {
+            if (!transportData->uiControls.isRunning) {
+                transportData->scenarios.clear();
+                for (int i{ 0 }; i < scenarioInputData.size(); i++) {
+                    ScenarioParams oneScenario;
+
+                    if (scenarioInputData[i][0].size() == 0)
+                        continue;
+                    oneScenario.sceneTime = std::stod(scenarioInputData[i][0]);
+
+                    for (int j{ 1 }; j < paramsNames.size() - 1; j++) {
+
+                        if (scenarioInputData[i][j].size() > 0) {
+                            try
+                            {
+                                double value = std::stod(scenarioInputData[i][j]);
+
+                                oneScenario.paramValues.push_back(value);
+                                oneScenario.modifiedParams.push_back(paramsId[j - (size_t)1]);
+                            }
+                            catch (const std::exception& emessage)
+                            {
+                                std::string logMessage = "Error CGui->ScenarioWindow: \nNot a number entered in scenarios: " + scenarioInputData[i][j] + "\n"
+                                    + std::string(emessage.what());
+                                //addmess(logMessage);
+                            }
+
+
+                        }
+                    }
+
+                    if (oneScenario.paramValues.size() > 0) {
+                        transportData->scenarios.push_back(oneScenario);
+                    }
+                    else {
+                        break;
+                    }
+                }
+
+
+            }
+            uiEvents.showScenarioWindow = false;
+        }
+
+        ImGui::End();
+    }
+}
+
+void ntrans::TransportUI::SensitivityParamsWindow()
+{
+    std::string this_windowName = "Load " + sensiControls.sensiParamName + " data";
+    ImGui::SetNextWindowSize(ImVec2(700, 250), ImGuiCond_Always);
+    ImGui::OpenPopup(this_windowName.c_str());
+    if (ImGui::BeginPopupModal(this_windowName.c_str(), &uiEvents.showSensitivityParamsWindow,
+        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysVerticalScrollbar |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiPopupFlags_NoOpenOverExistingPopup)) {
+
+        ImVec2 windowPos = ImGui::GetWindowPos();
+        ImVec2 windowSize = ImGui::GetWindowSize();
+
+        const char* combo_preview_value = sensiControls.sensParamsColumns[sensiControls.sensiParamColIndex];
+        std::string colName = "select " + sensiControls.sensiParamName + " column";
+
+        if (ImGui::BeginCombo(colName.c_str(), combo_preview_value))
+        {
+            for (int n = 0; n < sensiControls.sensiParamsSize; n++)
+            {
+                const bool is_selected = (sensiControls.sensiParamColIndex == n);
+                if (ImGui::Selectable(sensiControls.sensParamsColumns[n], is_selected))
+                    sensiControls.sensiParamColIndex = n;
+
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SetNextWindowPos(ImVec2(windowPos.x + 0.5 * windowSize.x - 60, windowPos.y + 0.8 * windowSize.y));
+        std::string child_windname = sensiControls.sensiParamName + "button window";
+        ImGui::BeginChild(child_windname.c_str());
+
+        if (ImGui::Button("Load Data", ImVec2(120, 40))) {
+            ImGui::CloseCurrentPopup();
+            uiEvents.showSensitivityParamsWindow = false;
+        }
+        ImGui::EndChild();
+        ImGui::EndPopup();
+    }
+}
+
+void ntrans::TransportUI::UpdateSensitivityParams(std::string pName, bool& paramState, double* pValue)
+{
+    std::vector<std::string>::iterator it_begin = transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsNames.begin();
+    std::vector<std::string>::iterator it_end = transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsNames.end();
+    std::vector<std::string>::iterator it = std::find(it_begin, it_end, pName);
+    bool isPresent = it != it_end;
+    int paramIndex = it - it_begin;
+    if (paramState && isPresent) {
+        ImGui::Checkbox(("log scale##" + pName).c_str(), &transportData->sensitivityAnalysis[sensiControls.currentSensitivity].useLogScale[paramIndex].useLogScale);
+        ImGui::InputScalarN(pName.c_str(), ImGuiDataType_Double,
+            transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsRange[paramIndex].data(), 3);
+       
+    }
+    else if (paramState) {
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsNames.push_back(pName);
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsRange.push_back(std::vector<double>{0.00, 1.0, 0.1});
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].sensitivityParams.push_back(pValue);
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].useLogScale.push_back({ false });
+    }
+    else if (isPresent) {
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsNames.erase(it);
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsRange.erase(transportData->sensitivityAnalysis[sensiControls.currentSensitivity].paramsRange.begin() + paramIndex);
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].sensitivityParams.erase(transportData->sensitivityAnalysis[sensiControls.currentSensitivity].sensitivityParams.begin() + paramIndex);
+        transportData->sensitivityAnalysis[sensiControls.currentSensitivity].useLogScale.erase(transportData->sensitivityAnalysis[sensiControls.currentSensitivity].useLogScale.begin() + paramIndex);
+    }
+}
+
+void ntrans::TransportUI::RemoveSensitivityData()
+{
+    if (sensiControls.totalSensitivity > 1) {
+        sensiControls.totalSensitivity--;
+        lsSensitivities.clear();
+        delete[] sensiControls.listedSensitivities;
+        sensiControls.listedSensitivities = new char* [sensiControls.totalSensitivity * sizeof(char*)];
+
+        for (int i{ 0 }; i < sensiControls.totalSensitivity; i++) {
+            lsSensitivities.push_back(std::string("selection ") + std::to_string(i + (size_t)1));
+            sensiControls.listedSensitivities[i] = (char*)lsSensitivities[i].c_str();
+        }
+        transportData->sensitivityAnalysis.erase(transportData->sensitivityAnalysis.begin() + sensiControls.currentSensitivity);
+        lsSensitivityParams.erase(lsSensitivityParams.begin() + sensiControls.currentSensitivity);
+        sensiControls.currentSensitivity = 0;
+    }
+}
+
+void ntrans::TransportUI::SensitivityWindow()
+{
+    if (ImGui::Begin("Sensitivity Analysis Window", &uiEvents.showSensitivityWindow, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse)) {
+
+        ImVec2 curWindowPos = ImGui::GetWindowPos();
+        ImVec2 curWindowSize = ImGui::GetWindowSize();
+        if (sensiControls.listedSensitivities == nullptr) {
+            sensiControls.listedSensitivities = new char* [sensiControls.totalSensitivity * sizeof(char*)];
+            sensiControls.listedSensitivities[0] = (char*)lsSensitivities[0].c_str();
+        }
+
+        float midPoint = curWindowSize.x / 2.0f;
+        if (ImGui::Button("add new", ImVec2(120, 40))) {
+            if (transportData->sensitivityAnalysis[transportData->sensitivityAnalysis.size() - 1].paramsNames.empty()) {
+
+            }
+            else {
+                sensiControls.totalSensitivity++;
+                lsSensitivityParams.push_back(isSelected());
+                delete[] sensiControls.listedSensitivities;
+                sensiControls.listedSensitivities = new char* [sensiControls.totalSensitivity * sizeof(char*)];
+                lsSensitivities.push_back(std::string("selection ") + std::to_string(sensiControls.totalSensitivity));
+                for (int i{ 0 }; i < sensiControls.totalSensitivity; i++) {
+                    sensiControls.listedSensitivities[i] = (char*)lsSensitivities[i].c_str();
+                }
+                transportData->sensitivityAnalysis.push_back(SensitivityAnalysisParams());
+                sensiControls.currentSensitivity++;
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("remove selection", ImVec2(190, 40))) {
+            RemoveSensitivityData();
+        }
+        ImGui::SameLine();
+
+        if (ImGui::Button("run sensitivity", ImVec2(190, 40))) {
+            int lastSensitivity = sensiControls.totalSensitivity - 1;
+            if (transportData->sensitivityAnalysis[lastSensitivity].sensitivityParams.empty()) {
+                sensiControls.currentSensitivity = lastSensitivity;
+                RemoveSensitivityData();
+
+            }
+            if (transportData->sensitivityAnalysis.size() > 0) {
+                int lastSensitivity = sensiControls.totalSensitivity - 1;
+                if (transportData->sensitivityAnalysis[lastSensitivity].sensitivityParams.size() > 0) {
+                    if (!transportData->uiControls.isRunning) {
+                        transportData->columnParams.simDir = nims_n::FileExplorer::openFolder(L"Select Sim Directory");
+                        if (!transportData->columnParams.simDir.empty() && transportData->uiControls.noObsData) {
+                            transportEvents.push_back(TransportSimEvents::SensitivityAnalysis);
+                            uiEvents.showSensitivityWindow = false;
+                        }
+                        else if (!transportData->columnParams.simDir.empty())
+                        {
+                            if (!transportData->simOut.observedBT.empty())
+                            {
+                                transportEvents.push_back(TransportSimEvents::SensitivityAnalysis);
+                            }
+                            else
+                            {
+                                transportData->uiControls.stopCustomLoop = false;
+                                transportEvents.push_back(TransportSimEvents::CustomSensi);
+                            }
+
+                            uiEvents.showSensitivityWindow = false;
+                        }
+
+                    }
+                }
+            }
+
+        }
+        ImGui::SameLine(midPoint);
+
+        const char* combo_preview_value = sensiControls.listedSensitivities[sensiControls.currentSensitivity];
+
+        ImGui::SetNextItemWidth(300.0f);
+        if (ImGui::BeginCombo("Added", combo_preview_value))
+        {
+            for (int n = 0; n < sensiControls.totalSensitivity; n++)
+            {
+                const bool is_selected = (sensiControls.currentSensitivity == n);
+                if (ImGui::Selectable(sensiControls.listedSensitivities[n], is_selected))
+                    sensiControls.currentSensitivity = n;
+
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SameLine();
+        ImGui::Checkbox("No obs.", &transportData->uiControls.noObsData);
+
+        ImGui::SeparatorText("Transport Parameters");
+
+        ImGui::BeginChild(("chd" + displayNames.flowVelocity).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.flowVelocity.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isFlowRate);
+        UpdateSensitivityParams(displayNames.flowVelocity, lsSensitivityParams[sensiControls.currentSensitivity].isFlowRate, &transportData->transParams.flowRate);
+        ImGui::EndChild();
+
+        ImGui::SameLine(midPoint);
+
+        ImGui::BeginChild(("chd" + displayNames.tetha).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.tetha.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isTetha);
+        UpdateSensitivityParams(displayNames.tetha, lsSensitivityParams[sensiControls.currentSensitivity].isTetha, &transportData->transParams.waterContent);
+        ImGui::EndChild();
+
+        ImGui::BeginChild(("chd" + displayNames.dispersion).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.dispersion.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isDisp);
+        UpdateSensitivityParams(displayNames.dispersion, lsSensitivityParams[sensiControls.currentSensitivity].isDisp, &transportData->transParams.dispersionLength);
+        ImGui::EndChild();
+
+        ImGui::SameLine(midPoint);
+
+        ImGui::BeginChild(("chd" + displayNames.molDiff).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.molDiff.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isDiff);
+        UpdateSensitivityParams(displayNames.molDiff, lsSensitivityParams[sensiControls.currentSensitivity].isDiff, &transportData->transParams.molecularDiffusion);
+        ImGui::EndChild();
+
+        ImGui::BeginChild(("chd" + displayNames.mobileTetha).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.mobileTetha.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isBeta);
+        UpdateSensitivityParams(displayNames.mobileTetha, lsSensitivityParams[sensiControls.currentSensitivity].isBeta, &transportData->transParams.mo_imPartitionCoefficient);
+        ImGui::EndChild();
+
+        ImGui::SameLine(midPoint);
+
+        ImGui::BeginChild(("chd" + displayNames.imoMobMassT).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.imoMobMassT.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isOmega);
+        UpdateSensitivityParams(displayNames.imoMobMassT, lsSensitivityParams[sensiControls.currentSensitivity].isOmega, &transportData->transParams.mo_imExchangeRate);
+        ImGui::EndChild();
+
+        ImGui::SeparatorText("Sorption Parameters");
+
+        ImGui::BeginChild(("chd" + displayNames.rho).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.rho.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isRho);
+        UpdateSensitivityParams(displayNames.rho, lsSensitivityParams[sensiControls.currentSensitivity].isRho, &transportData->transParams.bulkDensity);
+        ImGui::EndChild();
+
+        ImGui::SameLine(midPoint);
+
+        ImGui::BeginChild(("chd" + displayNames.pcoef).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.pcoef.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isPcoef);
+        UpdateSensitivityParams(displayNames.pcoef, lsSensitivityParams[sensiControls.currentSensitivity].isPcoef, &transportData->transParams.eq_kinPartitionCoefficient);
+        ImGui::EndChild();
+
+        ImGui::BeginChild(("chd" + displayNames.rtcoef).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.rtcoef.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isRtceof);
+        UpdateSensitivityParams(displayNames.rtcoef, lsSensitivityParams[sensiControls.currentSensitivity].isRtceof, &transportData->transParams.reactionRateCoefficient);
+        ImGui::EndChild();
+
+        ImGui::SameLine(midPoint);
+        ImGui::BeginChild(("chd" + displayNames.eq_k).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.eq_k.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isK);
+        UpdateSensitivityParams(displayNames.eq_k, lsSensitivityParams[sensiControls.currentSensitivity].isK, &transportData->transParams.isothermConstant);
+        ImGui::EndChild();
+
+        ImGui::BeginChild(("chd" + displayNames.eq_smax).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.eq_smax.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isSmax);
+        UpdateSensitivityParams(displayNames.eq_smax, lsSensitivityParams[sensiControls.currentSensitivity].isSmax, &transportData->transParams.maxAdsorptionVal);
+        ImGui::EndChild();
+
+        if (transportData->columnParams.isothermType == 1) {
+            
+
+            ImGui::SameLine(midPoint);
+
+            ImGui::BeginChild(("chd" + displayNames.hysteresis).c_str(), ImVec2(midPoint, 80.0f));
+            ImGui::Checkbox(displayNames.hysteresis.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isHysteresis);
+            UpdateSensitivityParams(displayNames.hysteresis, lsSensitivityParams[sensiControls.currentSensitivity].isHysteresis, &transportData->transParams.hysteresisCoefficient);
+            ImGui::EndChild();
+
+            
+        }
+        
+
+        ImGui::SeparatorText("Degradation Parameters");
+        ImGui::BeginChild(("chd" + displayNames.solnDeg).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.solnDeg.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isSolnDeg);
+        UpdateSensitivityParams(displayNames.solnDeg, lsSensitivityParams[sensiControls.currentSensitivity].isSolnDeg, &transportData->transParams.degradationRate_soln);
+        ImGui::EndChild();
+
+        ImGui::SameLine(midPoint);
+
+        ImGui::BeginChild(("chd" + displayNames.eqAdsDeg).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.eqAdsDeg.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isEqDeg);
+        UpdateSensitivityParams(displayNames.eqAdsDeg, lsSensitivityParams[sensiControls.currentSensitivity].isEqDeg, &transportData->transParams.degradationRate_eqsb);
+        ImGui::EndChild();
+
+        ImGui::BeginChild(("chd" + displayNames.kinAdsDeg).c_str(), ImVec2(midPoint, 80.0f));
+        ImGui::Checkbox(displayNames.kinAdsDeg.c_str(), &lsSensitivityParams[sensiControls.currentSensitivity].isKinDeg);
+        UpdateSensitivityParams(displayNames.kinAdsDeg, lsSensitivityParams[sensiControls.currentSensitivity].isKinDeg, &transportData->transParams.degradationRate_kinsb);
+        ImGui::EndChild();
+
+        ImGui::End();
+    }
+}
+
 void ntrans::TransportUI::windowBody()
 {
     PlotWindow();
@@ -1339,6 +1710,11 @@ void ntrans::TransportUI::windowBody()
         SaveDataWindow();
     if (uiEvents.showLoadObsWindow)
         LoadObsDataWindow();
+
+    if (uiEvents.showScenarioWindow)
+        ScenarioWindow();
+    if (uiEvents.showSensitivityWindow)
+        SensitivityWindow();
 
 }
 

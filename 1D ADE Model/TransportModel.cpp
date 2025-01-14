@@ -629,20 +629,8 @@ void ntrans::ModelADE::evaluateScenarios(double currentSimTime)
 				break;
 			case DIFCOEF:
 				tp->molecularDiffusion = simData->scenarios[currentScene].paramValues[j] >= 0.0 ? simData->scenarios[currentScene].paramValues[j] : initialTranspValues.molecularDiffusion;
-				break;
-			case KL_FWD:
-				tp->isothermConstant = simData->scenarios[currentScene].paramValues[j] >= 0.0 ? simData->scenarios[currentScene].paramValues[j] : initialTranspValues.isothermConstant;
-				break;
-
-			
+				break;			
 			case SMAX:
-				tp->adsorptionCapacity = simData->scenarios[currentScene].paramValues[j] >= 0.0 ? simData->scenarios[currentScene].paramValues[j] : initialTranspValues.adsorptionCapacity;
-				break;
-			case KF_FWD:
-				tp->isothermConstant = simData->scenarios[currentScene].paramValues[j] >= 0.0 ? simData->scenarios[currentScene].paramValues[j] : initialTranspValues.isothermConstant;
-				break;
-			
-			case NF_FWD:
 				tp->adsorptionCapacity = simData->scenarios[currentScene].paramValues[j] >= 0.0 ? simData->scenarios[currentScene].paramValues[j] : initialTranspValues.adsorptionCapacity;
 				break;
 			

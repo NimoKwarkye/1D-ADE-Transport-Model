@@ -75,26 +75,18 @@ namespace ntrans
         std::string flowVelocity{ "flow rate" };
         std::string dispersion{ "dispersion len." };
         std::string molDiff{ "molecular diff" };
-        std::string tetha{ "tetha" };
+        std::string tetha{ "water content" };
         std::string mobileTetha{ "mobile frac." };
         std::string imoMobMassT{ "imo-mob mass-rt" };
         std::string rho{ "bulk density" };
         std::string pcoef{ "p ceof" };
         std::string rtcoef{ "rt coef" };
         std::string eq_k{ "K" };
-        std::string kin_k{ "K_kin" };
-        std::string eq_kl{ "Kl" };
-        std::string kin_kl{ "Kl_kin" };
-        std::string eq_smax{ "Smax" };
+        std::string eq_smax{ "Smax/n" };
         std::string hysteresis{ "hysteresis coef" };
-        std::string eq_kf{ "Kf" };
-        std::string kin_kf{ "Kf_kin" };
-        std::string eq_nf{ "nf" };
-        std::string kin_nf{ "nf_kin" };
         std::string solnDeg{ "soln dg-rt" };
         std::string eqAdsDeg{ "eq-ads dg-rt" };
         std::string kinAdsDeg{ "kin-ads dg-rt" };
-        std::string smaxInc{ "smax_inc" };
     };
 
     struct UIEventsToggle
@@ -132,6 +124,17 @@ namespace ntrans
         std::string obsFileName{ "" };
     };
 
+    struct SensitivityControls
+    {
+        int sensiParamColIndex{ 0 };
+        int sensiParamsSize{ 0 };
+        int currentSensitivity{ 0 };
+        int totalSensitivity{ 1 };
+        std::string sensiParamName{ "" };
+        char** sensParamsColumns = nullptr;
+        char** listedSensitivities = nullptr;
+    };
+
 	class TransportUI
 	{
     private:
@@ -144,11 +147,9 @@ namespace ntrans
 
         std::vector<std::string>paramsNames{
         "Index", "Time", "Input Mass", "Flow Rate",
-        "Dispersion", "Mol Diffusion", "Tetha", "Mobile Tetha", "Mob-im Mass T Coef",
-        "Bulk Density", "Partition Coef", "Reaction Rate Coef", "Linear K", "Linear K_kin",
-        "Langmuir K", "Langmuir K_kin", "Langmuir Smax", "Hyseresis Coef",
-        "Freundlich K", "Freundlich K_k", "Freundlich n", "Freundlich n_kin", "Sol Deg Rate",
-        "Eq Sorbed Deg Rate", "Kin Sorbed Deg Rate", "smax_inc"
+        "Dispersion Length", "Mol Diffusion", "Theta", "Mobile Theta", "Mob-im Mass T Coef",
+        "Bulk Density", "Partition Coef", "Reaction Rate Coef", "isotherm constant K", "Smax/n", "Hyseresis Coef",
+        "Sol Deg Rate", "Eq Sorbed Deg Rate", "Kin Sorbed Deg Rate"
         };
 
 
@@ -159,8 +160,7 @@ namespace ntrans
         nims_n::FileExtensions fileExtensions;
         nims_n::TaskSystemLocal taskExecuter;
         
-        char** sensParamsColumns = nullptr;
-        char** listedSensitivities = nullptr;
+        
 
         ImageData loadIcon;
         ImageData runIcon;
@@ -170,6 +170,7 @@ namespace ntrans
 
         std::vector<isSelected>lsSensitivityParams{ isSelected() };
         std::vector<TransportSimEvents>transportEvents;
+        SensitivityControls sensiControls;
         ParamsNames displayNames;
 
         GLFWwindow* window = nullptr;
@@ -192,9 +193,13 @@ namespace ntrans
         void LoadObsDataWindow();
         void SelectParamsWindow();
         void SaveDataWindow();
+        void ScenarioWindow();
+        void SensitivityParamsWindow();
+        void UpdateSensitivityParams(std::string pName, bool& paramState, double* pValue);
+        void RemoveSensitivityData();
+        void SensitivityWindow();
         void windowBody();
         void updateWindow();
-
 
         ImVec4 heatMapRGBA(double value);
 
