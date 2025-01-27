@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <numeric>
 #include <functional>
+
+#include "MatArray.h"
 namespace nims_n
 {
 	struct MarquardtInput
@@ -22,7 +24,18 @@ namespace nims_n
 		bool stopFitting{ false };
 	};
 
-	void marquardtAlgorithm(MarquardtInput* fitData);
+	class MarquardtAlgorithm
+	{
+	public:
+
+		MarquardtAlgorithm(MarquardtInput* _fitData);
+
+		void operator()();
+
+	private:
+		MarquardtInput* fitData = nullptr;
+		MatArray<double> jcobian;
+	};
 	double sse(const std::vector<double>& lhs, const std::vector<double>& rhs);
 }
 

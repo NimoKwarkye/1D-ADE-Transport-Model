@@ -1,9 +1,25 @@
 #include "Optimizers.h"
 
-void nims_n::marquardtAlgorithm(MarquardtInput* fitData)
+
+double nims_n::sse(const std::vector<double>& lhs, const std::vector<double>& rhs)
+{
+	return std::transform_reduce(lhs.begin(), lhs.end(), rhs.begin(), 0.0, std::plus<>(),
+						[](const double& x, const double& y) ->double{
+								return (x - y) * (x - y);
+							});
+}
+
+nims_n::MarquardtAlgorithm::MarquardtAlgorithm(MarquardtInput* _fitData): fitData{_fitData}
+{
+	
+	
+}
+
+void nims_n::MarquardtAlgorithm::operator()()
 {
 	if (fitData->objFunc == nullptr || fitData->ytrainData == nullptr)
 	{
+		//log a message
 		return;
 	}
 
@@ -36,13 +52,4 @@ void nims_n::marquardtAlgorithm(MarquardtInput* fitData)
 		}
 
 	}
-
-}
-
-double nims_n::sse(const std::vector<double>& lhs, const std::vector<double>& rhs)
-{
-	return std::transform_reduce(lhs.begin(), lhs.end(), rhs.begin(), 0.0, std::plus<>(),
-						[](const double& x, const double& y) ->double{
-								return (x - y) * (x - y);
-							});
 }
