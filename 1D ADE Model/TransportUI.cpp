@@ -343,7 +343,10 @@ void ntrans::TransportUI::MainMenu()
         if (!transportData->uiControls.isRunning) {
             if (ImGui::ImageButton("run transport", (void*)(intptr_t)runIcon.data, ImVec2(runIcon.width, runIcon.height))) {
                 if (!transportData->uiControls.isRunning)
+                {
+                    transportData->uiControls.isCalibration = false;
                     taskExecuter.async_(modelObject);
+                }
 
             }
         }
@@ -363,6 +366,12 @@ void ntrans::TransportUI::MainMenu()
 
 void ntrans::TransportUI::loadModelParameters()
 {
+    if (transportData->uiControls.isRunning)
+    {
+        std::string msg = "Cannot load simulation data file while simulation is running\n";
+        logMessages(msg, 1);
+        return;
+    }
     COMDLG_FILTERSPEC iniExtension[] = { fileExtensions.iniFilter };
     std::string filename = nims_n::FileExplorer::openFile(L"Select Fixed Components Data File", 1, iniExtension);
    
@@ -521,13 +530,13 @@ void ntrans::TransportUI::PlotWindow()
                     {
                     case CalibrationType::Optimizer:
                     {
-                        /*if (ImPlot::BeginPlot("Change in Parameters")) {
+                        if (ImPlot::BeginPlot("Change in Parameters") && fittingInfo.dataPoint > 1) {
                             ImPlot::SetupAxis(ImAxis_X1, "iterations", ImPlotAxisFlags_AutoFit);
                             ImPlot::SetupAxis(ImAxis_Y1, "absolute change", ImPlotAxisFlags_AutoFit);
                             ImPlot::SetNextLineStyle(lineColor, 3);
-                            ImPlot::PlotLine("absolute change", transportData->iterationList.data(), transportData->objectiveFunction.data(), transportData->optIteration);
+                            ImPlot::PlotLine("absolute change", fittingInfo.iterations.data(), fittingInfo.relChange.data(), fittingInfo.dataPoint);
                             ImPlot::EndPlot();
-                        }*/
+                        }
                         break;
                     }
                     case CalibrationType::SensitivityAnalysis:
@@ -1030,7 +1039,7 @@ void ntrans::TransportUI::LogsWindow()
                 }
                 else if(messageTypes[i] < 0)
                 {
-                    ImVec4 textColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // RGBA
+                    ImVec4 textColor = ImVec4(0.8f, 0.0f, 0.2f, 1.0f); // RGBA
                     ImGui::PushStyleColor(ImGuiCol_Text, textColor);
                     ImGui::Text(updateMessages[i].c_str());
                     ImGui::PopStyleColor();
@@ -1038,7 +1047,7 @@ void ntrans::TransportUI::LogsWindow()
 
                 else if (messageTypes[i] > 0)
                 {
-                    ImVec4 textColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // RGBA
+                    ImVec4 textColor = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); // RGBA
                     ImGui::PushStyleColor(ImGuiCol_Text, textColor);
                     ImGui::Text(updateMessages[i].c_str());
                     ImGui::PopStyleColor();
@@ -1060,6 +1069,12 @@ void ntrans::TransportUI::LogsWindow()
 
 void ntrans::TransportUI::LoadObsDataWindow()
 {
+    if (transportData->uiControls.isRunning)
+    {
+        std::string msg = "Cannot load observation file while simulation is running\n";
+        logMessages(msg, 1);
+        return;
+    }
     ImGui::SetNextWindowSize(ImVec2(950.0, 312.0), ImGuiCond_Always);
     //ImGui::SetNextWindowPos(ImVec2(0.0, 0.0));
     if (ImGui::Begin("Load Observation Data", &uiEvents.showLoadObsWindow, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar)) {
@@ -1158,7 +1173,8 @@ void ntrans::TransportUI::LoadObsDataWindow()
             }
             catch (const std::exception& er)
             {
-
+                std::string msg = "Failed to load observation file: " + obsDataInfo.obsFileName + "\n";
+                logMessages(msg, -1);
             }
             
         }
@@ -1765,6 +1781,8 @@ void ntrans::TransportUI::windowBody()
         ScenarioWindow();
     if (uiEvents.showSensitivityWindow)
         SensitivityWindow();
+    if (uiEvents.showMarquardtWindow)
+        MarquardtWindow();
 
 }
 
@@ -1938,6 +1956,84 @@ void ntrans::TransportUI::GatherSelected(bool includeLimits)
             paramsLimits.push_back(-1.0);
     }
     
+}
+
+void ntrans::TransportUI::MarquardtWindow()
+{
+
+    ImGui::SetNextWindowSize(ImVec2(480, 720), ImGuiCond_Always);
+    if (ImGui::Begin("Mq: Select Parameters to Optimize", &uiEvents.showMarquardtWindow, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar)) {
+        ImVec2 windowPos = ImGui::GetWindowPos();
+        ImVec2 windowSize = ImGui::GetWindowSize();
+        SelectParamsWindow();
+
+        if (ImGui::BeginChild("mq params window", ImVec2(0, 140), false, ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar)) {
+            ImGui::SeparatorText("Marqaurdt Parameters");
+            ImGui::InputDouble("Lambda Up", &marqaurdtInput.lambdaUp, 0.1, 1.0, "%.2f");
+            ImGui::InputDouble("Lambda Down", &marqaurdtInput.lambdaDown, 0.1, 1.0, "%.2f");
+            //ImGui::Checkbox("nng", &transportData->mqNng);
+            ImGui::EndChild();
+        }
+
+        ImGui::SetNextWindowPos(ImVec2(windowPos.x + 0.5 * windowSize.x - 90, windowPos.y + 0.92 * windowSize.y));
+        ImGui::BeginChild("startButton window", ImVec2(180, 40));
+        if (ImGui::Button("start marquardt", ImVec2(180, 40))) {
+            if (!transportData->uiControls.isRunning && transportData->simOut.observedBT.size() > 0) {
+                GatherSelected();
+
+                if (selectedParams.size() > 0) {
+                    taskExecuter.async_([this]() {runMarquardt(); });
+                }
+            }
+            else
+            {
+                std::string msg = "Optimization failed. model is busy or no observation data selected\n";
+                logMessages(msg, -1);
+            }
+
+            uiEvents.showMarquardtWindow = false;
+        }
+        ImGui::EndChild();
+        ImGui::End();
+    }
+}
+
+void ntrans::TransportUI::runMarquardt()
+{
+    fittingInfo.dataPoint = 0;
+    transportData->uiControls.isRunning = true;
+    transportData->uiControls.isCalibration = true;
+    transportData->calibrationType = CalibrationType::Optimizer;
+
+    marqaurdtInput.stopFitting = &transportData->uiControls.scheduleStop;
+    marqaurdtInput.ytrainData = &transportData->simOut.observedBT;
+    marqaurdtInput.paramsToFit.resize(selectedParams.size());
+    std::copy(selectedParams.begin(), selectedParams.end(), marqaurdtInput.paramsToFit.begin());
+    marqaurdtInput.paramsNames = selectedParamsNames;
+
+    auto objFuction = [this](std::vector<double>& _out) {
+        modelObject();
+        std::copy(transportData->simOut.predictedBT.begin(), transportData->simOut.predictedBT.end(), _out.begin());
+    };
+
+    auto logFunction = [this](std::string msg, int tp) {
+        logMessages(msg, tp);
+    };
+    marqaurdtInput.logger = logFunction;
+    marqaurdtInput.objFunc = objFuction;
+    marqaurdtInput.cachedErrorCount = fittingInfo.maxStoredData;
+    marqaurdtInput.iterations = &fittingInfo.iterations;
+    marqaurdtInput.relativeErrorChange = &fittingInfo.relChange;
+    marqaurdtInput.dataPoint = &fittingInfo.dataPoint;
+
+    nims_n::MarquardtAlgorithm mqAlgm(&marqaurdtInput);
+    mqAlgm();
+
+    transportData->calibrationType = CalibrationType::None;
+
+    transportData->uiControls.scheduleStop = false;
+    transportData->uiControls.isRunning = false;
+
 }
 
 ImVec4 ntrans::TransportUI::heatMapRGBA(double value)

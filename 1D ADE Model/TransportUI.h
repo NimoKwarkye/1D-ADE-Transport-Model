@@ -19,6 +19,7 @@
 #include "TaskSystemLocal.h"
 #include "ReadCSV.h"
 #include "FileExplorer.h"
+#include "Optimizers.h"
 
 namespace ntrans
 {
@@ -124,6 +125,14 @@ namespace ntrans
         std::string obsFileName{ "" };
     };
 
+    struct OptInfo
+    {
+        int maxStoredData{ 50 };
+        int dataPoint{ 0 };
+        std::vector<double> relChange;
+        std::vector<double> iterations;
+    };
+
     struct SensitivityControls
     {
         int sensiParamColIndex{ 0 };
@@ -172,6 +181,8 @@ namespace ntrans
         ImageData stopIcon;
         ImageData saveIcon;
         isSelected paramsSelector;
+        nims_n::MarquardtInput marqaurdtInput;
+        OptInfo fittingInfo;
 
         std::vector<isSelected>lsSensitivityParams{ isSelected() };
         std::vector<TransportSimEvents>transportEvents;
@@ -205,7 +216,9 @@ namespace ntrans
         void SensitivityWindow();
         void windowBody();
         void updateWindow();
-        void GatherSelected(bool includeLimits);
+        void GatherSelected(bool includeLimits=false);
+        void MarquardtWindow();
+        void runMarquardt();
 
         ImVec4 heatMapRGBA(double value);
 

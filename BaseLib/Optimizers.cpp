@@ -3,7 +3,8 @@
 
 double nims_n::sse(const std::vector<double>& lhs, const std::vector<double>& rhs)
 {
-	return std::transform_reduce(lhs.begin(), lhs.end(), rhs.begin(), 0.0, std::plus<>(),
+	double initVal{ 0.0 };
+	return std::transform_reduce(lhs.begin(), lhs.end(), rhs.begin(), initVal, std::plus<>(),
 						[](const double& x, const double& y) ->double{
 								return (x - y) * (x - y);
 							});
@@ -34,8 +35,8 @@ bool nims_n::MarquardtAlgorithm::optimize()
 			std::string message(errorMessage.what());
 
 			std::string logMessage = "Premature termination of marquardt. see error below\n" + message;
-
-			fitData->stopFitting = true;
+			fitData->logger(logMessage, -1);
+			*fitData->stopFitting = true;
 			return false;
 		}
 		
@@ -111,8 +112,8 @@ void nims_n::MarquardtAlgorithm::operator()()
 	paramsCount = fitData->paramsToFit.size();
 	if (oldParams.size() != paramsCount)
 		oldParams.resize(paramsCount);
-	fitData->iterations.resize(fitData->cachedErrorCount);
-	fitData->relativeErrorChange.resize(fitData->cachedErrorCount);
+	fitData->iterations->resize(fitData->cachedErrorCount);
+	fitData->relativeErrorChange->resize(fitData->cachedErrorCount);
 
 	smpCount = fitData->ytrainData->size();
 	fitData->prediction.resize(smpCount);
@@ -125,34 +126,34 @@ void nims_n::MarquardtAlgorithm::operator()()
 	oldError = sse(*fitData->ytrainData, fitData->prediction);
 
 	currentError = 0.0;
-	double absChange = oldError - currentError;
+	relativeChange = oldError - currentError;
 	
 	if (fitData->logger != nullptr)
 		logResults();
-
+	fitData->logger(std::to_string(relativeChange), -1);
 	for (int i{ 0 }; i < paramsCount; i++)
 		oldParams[i] = *fitData->paramsToFit[i];
 
-	while (absChange > 1e-10)
+	while (relativeChange > 1e-10)
 	{
-		if (fitData->stopFitting)
-			break;
 		createJcMat();
-		if (optimize())
+		if (!optimize())
 			break;
-		fitData->dataPoint = fitData->iterationCount % fitData->cachedErrorCount;
-		fitData->iterations[fitData->dataPoint] = (double)(fitData->iterationCount + 1);
-		fitData->relativeErrorChange[fitData->dataPoint] = relativeChange;
+		*fitData->dataPoint = fitData->iterationCount % fitData->cachedErrorCount;
+		fitData->iterations->at(*fitData->dataPoint) = (double)(fitData->iterationCount + 1);
+		fitData->relativeErrorChange->at(*fitData->dataPoint) = relativeChange;
 
 		fitData->iterationCount++;
+		fitData->objFunc(fitData->prediction);
 		if (fitData->logger != nullptr)
 			logResults();
-
+		if (*fitData->stopFitting)
+			break;
 	}
 	deltaPrediction.clear();
 	jcobianT = zeros<double>(1, 1);
 	residuals = zeros<double>(1, 1);
 
-	for (int i{ 0 }; i < paramsCount; i++)
-		*fitData->paramsToFit[i] = oldParams[i];
+	/*for (int i{ 0 }; i < paramsCount; i++)
+		*fitData->paramsToFit[i] = oldParams[i];*/
 }
