@@ -14,27 +14,45 @@ namespace nims_n
 		std::vector<double>relativeErrorChange{};
 		std::vector<double>iterations{};
 		std::vector<double>prediction{};
+		std::vector<std::string>paramsNames;
 		
 		std::function<void(std::vector<double>&)> objFunc = nullptr;
 		std::function<void(std::string, int)> logger = nullptr;
 		
 		int iterationCount{ 0 };
+		int dataPoint{ 0 };
+		int cachedErrorCount{ 20 };
 		double lambda{ 1.0 };
+		double lambdaUp{ 1.5 };
 
+		double lambdaDown{ 3.0 };
 		bool stopFitting{ false };
 	};
 
 	class MarquardtAlgorithm
 	{
+	private:
+		bool optimize();
+		void createJcMat();
+		void logResults();
 	public:
 
 		MarquardtAlgorithm(MarquardtInput* _fitData);
 
 		void operator()();
 
+
 	private:
 		MarquardtInput* fitData = nullptr;
-		MatArray<double> jcobian;
+		MatArray<double> jcobianT;
+		std::vector<double>oldParams;
+		MatArray<double>residuals;
+		std::vector<double> deltaPrediction;
+		double oldError = DBL_MAX;
+		double currentError = 0.0;
+		double relativeChange{ 0.0 };
+		int paramsCount{0};
+		int smpCount{ 0 };
 	};
 	double sse(const std::vector<double>& lhs, const std::vector<double>& rhs);
 }

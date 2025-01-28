@@ -140,10 +140,15 @@ namespace ntrans
     private:
         std::vector<std::vector<std::string>>scenarioInputData;
         std::vector<std::vector<std::string>>interruptInputData;
-        std::vector<std::string>errorMessages;
         std::vector<std::string>updateMessages;
+        std::vector<int>messageTypes{};
+        int maxMessageCount{ 20 };
         std::vector<std::string>lsSensitivities{ "selection 1" };
         std::vector<int>paramsId{};
+        
+        std::vector<std::string>selectedParamsNames;
+        std::vector<double*>selectedParams;
+        std::vector<double>paramsLimits;
 
         std::vector<std::string>paramsNames{
         "Index", "Time", "Input Mass", "Flow Rate",
@@ -200,10 +205,12 @@ namespace ntrans
         void SensitivityWindow();
         void windowBody();
         void updateWindow();
+        void GatherSelected(bool includeLimits);
 
         ImVec4 heatMapRGBA(double value);
 
     public:
+        void logMessages(std::string mesg, int msgType = 0);
         TransportUI(int _width = 600, int _height = 400, std::string windowName = "My Window", SimulationData* _modelData = nullptr);
         ~TransportUI();
         void operator()();

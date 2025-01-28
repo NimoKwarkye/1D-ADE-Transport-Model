@@ -1019,12 +1019,31 @@ void ntrans::TransportUI::LogsWindow()
         ImVec2 curWindowSize = ImGui::GetWindowSize();
 
         //ImGui::SetNextWindowPos(ImVec2(curWindowPos.x + 0.02 * curWindowSize.x, curWindowPos.y), ImGuiCond_Always);
-        ImGui::BeginChild("update logs", ImVec2(curWindowSize.x * 0.47, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+        ImGui::BeginChild("update logs", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_HorizontalScrollbar);
         ImGui::SeparatorText("Output");
         if (updateMessages.size() > 0) {
             int sz = (int)updateMessages.size() - 1;
             for (int i{ sz }; i >= 0; i--) {
-                ImGui::Text(updateMessages[i].c_str());
+                if (messageTypes[i] == 0)
+                {
+                    ImGui::Text(updateMessages[i].c_str());
+                }
+                else if(messageTypes[i] < 0)
+                {
+                    ImVec4 textColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // RGBA
+                    ImGui::PushStyleColor(ImGuiCol_Text, textColor);
+                    ImGui::Text(updateMessages[i].c_str());
+                    ImGui::PopStyleColor();
+                }
+
+                else if (messageTypes[i] > 0)
+                {
+                    ImVec4 textColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // RGBA
+                    ImGui::PushStyleColor(ImGuiCol_Text, textColor);
+                    ImGui::Text(updateMessages[i].c_str());
+                    ImGui::PopStyleColor();
+                }
+
                 ImGui::Separator();
             }
         }
@@ -1033,17 +1052,7 @@ void ntrans::TransportUI::LogsWindow()
 
         ImGui::EndChild();
 
-        ImGui::SameLine(0.02 * curWindowSize.x + curWindowSize.x * 0.49);
-        ImGui::BeginChild("error logs", ImVec2(curWindowSize.x * 0.47, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-        ImGui::SeparatorText("Error List");
-        if (errorMessages.size() > 0) {
-            int sz = (int)errorMessages.size() - 1;
-            for (int i{ sz }; i >= 0; i--) {
-                ImGui::Text(errorMessages[i].c_str());
-                ImGui::Separator();
-            }
-        }
-        ImGui::EndChild();
+        
 
         ImGui::End();
     }
@@ -1162,6 +1171,47 @@ void ntrans::TransportUI::LoadObsDataWindow()
 
 void ntrans::TransportUI::SelectParamsWindow()
 {
+    ImGui::BeginChild("select_params", ImVec2(480, 480), false, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
+    ImGui::SeparatorText("Transport Parameters");
+    ImGui::Checkbox(displayNames.flowVelocity.c_str(), &paramsSelector.isFlowRate);
+    ImGui::SameLine(250.0);
+    ImGui::Checkbox(displayNames.tetha.c_str(), &paramsSelector.isTetha);
+    ImGui::Checkbox(displayNames.dispersion.c_str(), &paramsSelector.isDisp);
+    ImGui::SameLine(250.0);
+    ImGui::Checkbox(displayNames.molDiff.c_str(), &paramsSelector.isDiff);
+    ImGui::Checkbox(displayNames.mobileTetha.c_str(), &paramsSelector.isBeta);
+    ImGui::SameLine(250.0);
+    ImGui::Checkbox(displayNames.imoMobMassT.c_str(), &paramsSelector.isOmega);
+    ImGui::SeparatorText("Sorption Parameters");
+    ImGui::Checkbox(displayNames.rho.c_str(), &paramsSelector.isRho);
+    ImGui::SameLine(250.0);
+    ImGui::Checkbox(displayNames.pcoef.c_str(), &paramsSelector.isPcoef);
+    ImGui::Checkbox(displayNames.rtcoef.c_str(), &paramsSelector.isRtceof);
+    ImGui::SameLine(250.0);
+    if (transportData->columnParams.isothermType == 3) {
+        ImGui::Checkbox(displayNames.eq_k.c_str(), &paramsSelector.isK);
+    }
+    if (transportData->columnParams.isothermType == 1) {
+        ImGui::Checkbox(displayNames.eq_k.c_str(), &paramsSelector.isKl);
+        ImGui::Checkbox(displayNames.eq_smax.c_str(), &paramsSelector.isSmax);
+        ImGui::SameLine(250.0);
+        ImGui::Checkbox(displayNames.hysteresis.c_str(), &paramsSelector.isHysteresis);
+    }
+    if (transportData->columnParams.isothermType == 2) {
+        ImGui::Checkbox(displayNames.eq_k.c_str(), &paramsSelector.isKf);
+        ImGui::Checkbox(displayNames.eq_smax.c_str(), &paramsSelector.isnf);
+
+    }
+
+    ImGui::SeparatorText("Degradation Parameters");
+    ImGui::Checkbox(displayNames.solnDeg.c_str(), &paramsSelector.isSolnDeg);
+    ImGui::SameLine(250.0);
+    ImGui::Checkbox(displayNames.eqAdsDeg.c_str(), &paramsSelector.isEqDeg);
+    ImGui::Checkbox(displayNames.kinAdsDeg.c_str(), &paramsSelector.isKinDeg);
+
+
+
+    ImGui::EndChild();
 }
 
 void ntrans::TransportUI::SaveDataWindow()
@@ -1754,6 +1804,142 @@ void ntrans::TransportUI::updateWindow()
     }
 }
 
+void ntrans::TransportUI::GatherSelected(bool includeLimits)
+{
+    selectedParams.clear();
+    paramsLimits.clear();
+    selectedParamsNames.clear();
+    if (paramsSelector.isFlowRate)
+    {
+        selectedParams.push_back(&transportData->transParams.flowRate);
+        selectedParamsNames.push_back("flow rate");
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+
+    if (paramsSelector.isTetha) {
+        selectedParams.push_back(&transportData->transParams.waterContent);
+        selectedParamsNames.push_back("water content");
+
+        if (includeLimits)
+            paramsLimits.push_back(1.0);
+    }
+    if (paramsSelector.isDisp) {
+        selectedParams.push_back(&transportData->transParams.dispersionLength);
+        selectedParamsNames.push_back("dispersion length");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isDiff) {
+        selectedParams.push_back(&transportData->transParams.molecularDiffusion);
+        selectedParamsNames.push_back("molecular diffusion");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isBeta) {
+        selectedParams.push_back(&transportData->transParams.mo_imPartitionCoefficient);
+        selectedParamsNames.push_back("frac. of mobile");
+
+        if (includeLimits)
+            paramsLimits.push_back(1.0);
+    }
+    if (paramsSelector.isOmega) {
+        selectedParams.push_back(&transportData->transParams.mo_imExchangeRate);
+        selectedParamsNames.push_back("imo-mob mass t-rate");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isRho) {
+        selectedParams.push_back(&transportData->transParams.bulkDensity);
+        selectedParamsNames.push_back("bulk density");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isPcoef) {
+        selectedParams.push_back(&transportData->transParams.eq_kinPartitionCoefficient);
+        selectedParamsNames.push_back("frac. of eq ads");
+
+        if (includeLimits)
+            paramsLimits.push_back(1.0);
+    }
+    if (paramsSelector.isRtceof) {
+        selectedParams.push_back(&transportData->transParams.reactionRateCoefficient);
+        selectedParamsNames.push_back("reaction rate-coef");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isK) {
+        selectedParams.push_back(&transportData->transParams.isothermConstant);
+        selectedParamsNames.push_back("linear iso-constant");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isKl) {
+        selectedParams.push_back(&transportData->transParams.isothermConstant);
+        selectedParamsNames.push_back("langmuir iso-constant");
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isSmax) {
+        selectedParams.push_back(&transportData->transParams.adsorptionCapacity);
+        selectedParamsNames.push_back("langmuir smax");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isKf) {
+        selectedParams.push_back(&transportData->transParams.isothermConstant);
+        selectedParamsNames.push_back("freund. iso-constant");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isnf) {
+        selectedParams.push_back(&transportData->transParams.adsorptionCapacity);
+        selectedParamsNames.push_back("freund. n");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    
+    
+    if (paramsSelector.isHysteresis) {
+        selectedParams.push_back(&transportData->transParams.hysteresisCoefficient);
+        selectedParamsNames.push_back("hysteresis coef.");
+
+        if (includeLimits)
+            paramsLimits.push_back(1.0);
+    }
+    if (paramsSelector.isSolnDeg) {
+        selectedParams.push_back(&transportData->transParams.degradationRate_soln);
+        selectedParamsNames.push_back("soln degradation-r");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isEqDeg) {
+        selectedParams.push_back(&transportData->transParams.degradationRate_eqsb);
+        selectedParamsNames.push_back("eq_ads degradation-r");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    if (paramsSelector.isKinDeg) {
+        selectedParams.push_back(&transportData->transParams.degradationRate_kinsb);
+        selectedParamsNames.push_back("neq_ads degradation-r");
+
+        if (includeLimits)
+            paramsLimits.push_back(-1.0);
+    }
+    
+}
+
 ImVec4 ntrans::TransportUI::heatMapRGBA(double value)
 {
     ImVec4 rgbColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -1801,6 +1987,32 @@ ImVec4 ntrans::TransportUI::heatMapRGBA(double value)
     }
 
     return rgbColor;
+}
+
+void ntrans::TransportUI::logMessages(std::string msg, int msgType)
+{
+    std::time_t t = std::time(0);
+    struct tm newtime;
+    localtime_s(&newtime, &t);
+
+    std::string title = "UPDATE";
+    if (msgType < 0)
+        title = "ERROR";
+    if (msgType > 0)
+        title = "WARNING";
+
+    std::string msgTime = "[" + std::to_string(newtime.tm_hour) + ":" + std::to_string(newtime.tm_min) + ":" + 
+        std::to_string(newtime.tm_sec) + "]-> " + title + "\n";
+
+    if (updateMessages.size() < maxMessageCount) {
+        updateMessages.push_back(msgTime + msg);
+        messageTypes.push_back(msgType);
+    }
+    else {
+        updateMessages.erase(updateMessages.begin());
+        updateMessages.push_back(msgTime + msg);
+        messageTypes[maxMessageCount - 1] = msgType;
+    }
 }
 
 ntrans::TransportUI::TransportUI(int _width, int _height, std::string windowName, SimulationData* _modelData) :

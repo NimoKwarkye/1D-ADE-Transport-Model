@@ -862,6 +862,28 @@ namespace nims_n {
             return MatArray<T>(ret_data, dim, dim);
         }
 
+
+        MatArray<T> getDiag()
+        {
+
+            size_t dim = nrows * ncols;
+            std::vector<T>ret_data(dim, T(0));
+
+
+            for (int rw{ 0 }; rw < nrows; rw++) {
+                for (int cl{ 0 }; cl < ncols; cl++) {
+                    int tindex = (rw * ncols) + cl;
+                    if (rw == cl) {
+                        ret_data[tindex] = data[tindex];
+                    }
+                }
+
+
+            }
+
+            return MatArray<T>(ret_data, nrows, ncols);
+        }
+
         auto mat() { return 1; }
         auto mat() const { return 1; }
         auto f_mat_view() { return 1; }
@@ -1331,6 +1353,30 @@ namespace nims_n {
         }
     }
 
+    template<typename T>
+    void addMat(const MatArray<T>& lhs, const MatArray<T>& rhs, MatArray<T>& _out)
+    {
+        std::transform(lhs.begin(), lhs.end(), rhs.begin(), _out.begin(), [](const T& x, const T& y) {return x + y; });
+    }
+
+    template<typename T>
+    void subtractMat(const MatArray<T>& lhs, const MatArray<T>& rhs, MatArray<T>& _out)
+    {
+        std::transform(lhs.begin(), lhs.end(), rhs.begin(), _out.begin(), [](const T& x, const T& y) {return x - y; });
+    }
+
+    template<typename T>
+    void subtractMat(const std::vector<T>& lhs, const std::vector<T>& rhs, MatArray<T>& _out)
+    {
+        std::transform(lhs.begin(), lhs.end(), rhs.begin(), _out.begin(), [](const T& x, const T& y) {return x - y; });
+    }
+
+    template<typename T>
+    void multVec(const MatArray<T>& lhs, const MatArray<T>& rhs, MatArray<T>& _out)
+    {
+        std::transform(lhs.begin(), lhs.end(), rhs.begin(), _out.begin(), [](const T& x, const T& y) {return x * y; });
+    }
+
 #endif // PARALLEL
 
     template<typename T>
@@ -1556,13 +1602,7 @@ namespace nims_n {
         res.transpose();
     }
 
-    template<typename T>
-    void addMat(const MatArray<T>& lhs, const MatArray<T>& rhs, MatArray<T>& res)
-    {
-        std::transform(lhs.begin(), lhs.end(), rhs.begin(), 
-            res.begin(), [](const T& x, const T& y) {return x + y; });
-    }
-
+    
     template<typename T>
     MatArray<T> multSelCol(const MatArray<T>& lhs, const MatArray<T>& rhs, const std::vector<size_t>selColumns, bool l_t = false, bool r_t = false)
     {
