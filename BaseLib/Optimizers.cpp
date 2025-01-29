@@ -13,8 +13,8 @@ double nims_n::sse(const std::vector<double>& lhs, const std::vector<double>& rh
 bool nims_n::MarquardtAlgorithm::optimize()
 {
 	subtractMat(*fitData->ytrainData, fitData->prediction, residuals);
-	currentError = std::transform_reduce(residuals.begin(), residuals.end(), 
-											residuals.begin(), 0.0, std::plus<>(), std::multiplies<>());
+	/*currentError = std::transform_reduce(residuals.begin(), residuals.end(), 
+											residuals.begin(), 0.0, std::plus<>(), std::multiplies<>());*/
 	if(currentError < oldError)
 	{
 		fitData->lambda /= fitData->lambdaDown;
@@ -46,15 +46,14 @@ bool nims_n::MarquardtAlgorithm::optimize()
 		for (int i{ 0 }; i < paramsCount; i++)
 			*fitData->paramsToFit[i] += step[i];
 
-		relativeChange = std::abs(currentError - oldError);
-		oldError = currentError;
+		
 	}
 	else
 	{
 		for (int i{ 0 }; i < paramsCount; i++)
 			*fitData->paramsToFit[i] = oldParams[i];
 
-		fitData->lambda /= fitData->lambdaUp;
+		fitData->lambda *= fitData->lambdaUp;
 	}
 	return true;
 
@@ -88,7 +87,10 @@ void nims_n::MarquardtAlgorithm::logResults()
 	for (int i{ 0 }; i < fitData->paramsNames.size(); i++) {
 		ret += fitData->paramsNames[i] + ": " + std::to_string(*fitData->paramsToFit[i]) + "\n";
 	}
+	ret += "\n";
 	ret += "lambda: " + std::to_string(fitData->lambda) + "\n";
+	ret += "relativeChange: " + std::to_string(relativeChange) + "\n";
+	ret += "iterations: " + std::to_string(fitData->iterationCount) + "\n";
 	fitData->logger(ret, 0);
 }
 
@@ -123,14 +125,13 @@ void nims_n::MarquardtAlgorithm::operator()()
 
 	fitData->objFunc(fitData->prediction);
 
-	oldError = sse(*fitData->ytrainData, fitData->prediction);
+	currentError = sse(*fitData->ytrainData, fitData->prediction);
 
-	currentError = 0.0;
-	relativeChange = oldError - currentError;
+	oldError = DBL_MAX;
+	relativeChange = std::abs(currentError);
 	
 	if (fitData->logger != nullptr)
 		logResults();
-	fitData->logger(std::to_string(relativeChange), -1);
 	for (int i{ 0 }; i < paramsCount; i++)
 		oldParams[i] = *fitData->paramsToFit[i];
 
@@ -140,20 +141,27 @@ void nims_n::MarquardtAlgorithm::operator()()
 		if (!optimize())
 			break;
 		*fitData->dataPoint = fitData->iterationCount % fitData->cachedErrorCount;
-		fitData->iterations->at(*fitData->dataPoint) = (double)(fitData->iterationCount + 1);
+		fitData->iterations->at(*fitData->dataPoint) = (double)(fitData->iterationCount + (size_t)1);
 		fitData->relativeErrorChange->at(*fitData->dataPoint) = relativeChange;
 
 		fitData->iterationCount++;
 		fitData->objFunc(fitData->prediction);
 		if (fitData->logger != nullptr)
 			logResults();
+		if (currentError < oldError)
+			oldError = currentError;
+		currentError = sse(*fitData->ytrainData, fitData->prediction);
+
+		relativeChange = std::abs(currentError - oldError);
 		if (*fitData->stopFitting)
+		{
+			if (currentError > oldError)
+				for (int i{ 0 }; i < paramsCount; i++)
+					*fitData->paramsToFit[i] = oldParams[i];
 			break;
+		}
 	}
 	deltaPrediction.clear();
 	jcobianT = zeros<double>(1, 1);
 	residuals = zeros<double>(1, 1);
-
-	/*for (int i{ 0 }; i < paramsCount; i++)
-		*fitData->paramsToFit[i] = oldParams[i];*/
 }

@@ -2036,6 +2036,32 @@ void ntrans::TransportUI::runMarquardt()
 
 }
 
+void ntrans::TransportUI::UncertaintyWindow()
+{
+    ImGui::SetNextWindowSize(ImVec2(480, 720), ImGuiCond_Always);
+    if (ImGui::Begin("Estimate Parameter Uncertainty", &uiEvents.showUncertaintyWindow, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar)) {
+        ImVec2 windowPos = ImGui::GetWindowPos();
+        ImVec2 windowSize = ImGui::GetWindowSize();
+        SelectParamsWindow();
+
+        ImGui::SetNextWindowPos(ImVec2(windowPos.x + 0.5 * windowSize.x - 90, windowPos.y + 0.92 * windowSize.y));
+        ImGui::BeginChild("startButton window", ImVec2(180, 40));
+        if (ImGui::Button("calculate", ImVec2(180, 40))) {
+            if (!transportData->uiControls.isRunning && transportData->simOut.observedBT.size() > 0) {
+                GatherSelected();
+
+                if (selectedParams.size() > 0) {
+
+                }
+            }
+
+            uiEvents.showUncertaintyWindow = false;
+        }
+        ImGui::EndChild();
+        ImGui::End();
+    }
+}
+
 ImVec4 ntrans::TransportUI::heatMapRGBA(double value)
 {
     ImVec4 rgbColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);

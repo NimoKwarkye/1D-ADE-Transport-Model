@@ -219,6 +219,7 @@ namespace ntrans
         void GatherSelected(bool includeLimits=false);
         void MarquardtWindow();
         void runMarquardt();
+        void UncertaintyWindow();
 
         ImVec4 heatMapRGBA(double value);
 
