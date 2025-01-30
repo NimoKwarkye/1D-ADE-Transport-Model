@@ -1969,8 +1969,8 @@ void ntrans::TransportUI::MarquardtWindow()
 
         if (ImGui::BeginChild("mq params window", ImVec2(0, 140), false, ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar)) {
             ImGui::SeparatorText("Marqaurdt Parameters");
-            ImGui::InputDouble("Lambda Up", &marqaurdtInput.lambdaUp, 0.1, 1.0, "%.2f");
-            ImGui::InputDouble("Lambda Down", &marqaurdtInput.lambdaDown, 0.1, 1.0, "%.2f");
+            ImGui::InputDouble("Lambda Up", &marquardInput.lambdaUp, 0.1, 1.0, "%.2f");
+            ImGui::InputDouble("Lambda Down", &marquardInput.lambdaDown, 0.1, 1.0, "%.2f");
             //ImGui::Checkbox("nng", &transportData->mqNng);
             ImGui::EndChild();
         }
@@ -2005,11 +2005,11 @@ void ntrans::TransportUI::runMarquardt()
     transportData->uiControls.isCalibration = true;
     transportData->calibrationType = CalibrationType::Optimizer;
 
-    marqaurdtInput.stopFitting = &transportData->uiControls.scheduleStop;
-    marqaurdtInput.ytrainData = &transportData->simOut.observedBT;
-    marqaurdtInput.paramsToFit.resize(selectedParams.size());
-    std::copy(selectedParams.begin(), selectedParams.end(), marqaurdtInput.paramsToFit.begin());
-    marqaurdtInput.paramsNames = selectedParamsNames;
+    optInput.stopFitting = &transportData->uiControls.scheduleStop;
+    optInput.ytrainData = &transportData->simOut.observedBT;
+    optInput.paramsToFit.resize(selectedParams.size());
+    std::copy(selectedParams.begin(), selectedParams.end(), optInput.paramsToFit.begin());
+    optInput.paramsNames = selectedParamsNames;
 
     auto objFuction = [this](std::vector<double>& _out) {
         modelObject();
@@ -2019,14 +2019,14 @@ void ntrans::TransportUI::runMarquardt()
     auto logFunction = [this](std::string msg, int tp) {
         logMessages(msg, tp);
     };
-    marqaurdtInput.logger = logFunction;
-    marqaurdtInput.objFunc = objFuction;
-    marqaurdtInput.cachedErrorCount = fittingInfo.maxStoredData;
-    marqaurdtInput.iterations = &fittingInfo.iterations;
-    marqaurdtInput.relativeErrorChange = &fittingInfo.relChange;
-    marqaurdtInput.dataPoint = &fittingInfo.dataPoint;
+    optInput.logger = logFunction;
+    optInput.objFunc = objFuction;
+    optInput.cachedErrorCount = fittingInfo.maxStoredData;
+    optInput.iterations = &fittingInfo.iterations;
+    optInput.relativeErrorChange = &fittingInfo.relChange;
+    optInput.dataPoint = &fittingInfo.dataPoint;
 
-    nims_n::MarquardtAlgorithm mqAlgm(&marqaurdtInput);
+    nims_n::MarquardtAlgorithm mqAlgm(&optInput, &marquardInput);
     mqAlgm();
 
     transportData->calibrationType = CalibrationType::None;

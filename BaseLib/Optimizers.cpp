@@ -10,6 +10,29 @@ double nims_n::sse(const std::vector<double>& lhs, const std::vector<double>& rh
 							});
 }
 
+void nims_n::createJacobianMatrix(OptimizationInput* _fitData, std::vector<double>& deltaPd, MatArray<double>& outJcT)
+{
+	double delta = 1e-8;
+	int paramsCount = _fitData->paramsToFit.size();
+	int smpCount = _fitData->ytrainData->size();
+	for (int i{ 0 }; i < paramsCount; i++)
+	{
+		*_fitData->paramsToFit[i] += delta;
+		_fitData->objFunc(deltaPd);
+
+		std::transform(deltaPd.begin(), deltaPd.end(),
+			_fitData->prediction.begin(), deltaPd.begin(),
+			[delta](const double& y, const double& x) {
+				return (y - x) / delta;
+			});
+
+		auto begin = outJcT.begin() + i * smpCount;
+		std::copy(deltaPd.begin(), deltaPd.end(), begin);
+
+		*_fitData->paramsToFit[i] -= delta;
+	}
+}
+
 bool nims_n::MarquardtAlgorithm::optimize()
 {
 	subtractMat(*fitData->ytrainData, fitData->prediction, residuals);
@@ -17,7 +40,7 @@ bool nims_n::MarquardtAlgorithm::optimize()
 											residuals.begin(), 0.0, std::plus<>(), std::multiplies<>());*/
 	if(currentError < oldError)
 	{
-		fitData->lambda /= fitData->lambdaDown;
+		mqParams->lambda /= mqParams->lambdaDown;
 		MatArray<double>jcTjcInv;
 
 		for (int i{ 0 }; i < paramsCount; i++)
@@ -25,7 +48,7 @@ bool nims_n::MarquardtAlgorithm::optimize()
 		
 		auto jcobian = jcobianT.getTransposed();
 		auto jcTjc = jcobianT & jcobian;
-		jcTjc += jcTjc.getDiag() * fitData->lambda;
+		jcTjc += jcTjc.getDiag() * mqParams->lambda;
 		try
 		{
 			jcTjcInv = inv(jcTjc);
@@ -53,7 +76,7 @@ bool nims_n::MarquardtAlgorithm::optimize()
 		for (int i{ 0 }; i < paramsCount; i++)
 			*fitData->paramsToFit[i] = oldParams[i];
 
-		fitData->lambda *= fitData->lambdaUp;
+		mqParams->lambda *= mqParams->lambdaUp;
 	}
 	return true;
 
@@ -88,13 +111,13 @@ void nims_n::MarquardtAlgorithm::logResults()
 		ret += fitData->paramsNames[i] + ": " + std::to_string(*fitData->paramsToFit[i]) + "\n";
 	}
 	ret += "\n";
-	ret += "lambda: " + std::to_string(fitData->lambda) + "\n";
+	ret += "lambda: " + std::to_string(mqParams->lambda) + "\n";
 	ret += "relativeChange: " + std::to_string(relativeChange) + "\n";
 	ret += "iterations: " + std::to_string(fitData->iterationCount) + "\n";
 	fitData->logger(ret, 0);
 }
 
-nims_n::MarquardtAlgorithm::MarquardtAlgorithm(MarquardtInput* _fitData): fitData{_fitData}
+nims_n::MarquardtAlgorithm::MarquardtAlgorithm(OptimizationInput* _fitData, MarquardtInput* _mqParams): fitData{_fitData}, mqParams{_mqParams}
 {
 	
 }

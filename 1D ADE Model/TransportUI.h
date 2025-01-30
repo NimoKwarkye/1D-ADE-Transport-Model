@@ -173,7 +173,7 @@ namespace ntrans
         ObservedDataInfo obsDataInfo;
         nims_n::FileExtensions fileExtensions;
         nims_n::TaskSystemLocal taskExecuter;
-        
+        nims_n::MarquardtInput marquardInput;
         
 
         ImageData loadIcon;
@@ -181,7 +181,7 @@ namespace ntrans
         ImageData stopIcon;
         ImageData saveIcon;
         isSelected paramsSelector;
-        nims_n::MarquardtInput marqaurdtInput;
+        nims_n::OptimizationInput optInput;
         OptInfo fittingInfo;
 
         std::vector<isSelected>lsSensitivityParams{ isSelected() };

@@ -7,7 +7,7 @@
 #include "MatArray.h"
 namespace nims_n
 {
-	struct MarquardtInput
+	struct OptimizationInput
 	{
 		std::vector<double>* ytrainData = nullptr;
 		std::vector<double*> paramsToFit{};
@@ -22,11 +22,15 @@ namespace nims_n
 		int iterationCount{ 0 };
 		int* dataPoint{ 0 };
 		int cachedErrorCount{ 20 };
+		
+		bool* stopFitting{ nullptr };
+	};
+
+	struct MarquardtInput
+	{
 		double lambda{ 1.0 };
 		double lambdaUp{ 1.5 };
-
 		double lambdaDown{ 3.0 };
-		bool* stopFitting{ nullptr };
 	};
 
 	class MarquardtAlgorithm
@@ -37,13 +41,14 @@ namespace nims_n
 		void logResults();
 	public:
 
-		MarquardtAlgorithm(MarquardtInput* _fitData);
+		MarquardtAlgorithm(OptimizationInput* _fitData, MarquardtInput* _mqParams);
 
 		void operator()();
 
 
 	private:
-		MarquardtInput* fitData = nullptr;
+		OptimizationInput* fitData = nullptr;
+		MarquardtInput* mqParams = nullptr;
 		MatArray<double> jcobianT;
 		std::vector<double>oldParams;
 		MatArray<double>residuals;
@@ -55,6 +60,7 @@ namespace nims_n
 		int smpCount{ 0 };
 	};
 	double sse(const std::vector<double>& lhs, const std::vector<double>& rhs);
+	void createJacobianMatrix(OptimizationInput* _fitData, std::vector<double>& deltaPd, MatArray<double>& outJcT);
 }
 
 
