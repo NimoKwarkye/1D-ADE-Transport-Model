@@ -59,6 +59,19 @@ namespace nims_n
 		int paramsCount{0};
 		int smpCount{ 0 };
 	};
+	
+	class ParamUncertainty
+	{
+	private:
+		void uncertainty();
+
+
+	public:
+
+	private:
+		OptimizationInput* fitData = nullptr;
+	};
+	
 	double sse(const std::vector<double>& lhs, const std::vector<double>& rhs);
 	void createJacobianMatrix(OptimizationInput* _fitData, std::vector<double>& deltaPd, MatArray<double>& outJcT);
 }

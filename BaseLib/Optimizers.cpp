@@ -188,3 +188,17 @@ void nims_n::MarquardtAlgorithm::operator()()
 	jcobianT = zeros<double>(1, 1);
 	residuals = zeros<double>(1, 1);
 }
+
+void nims_n::ParamUncertainty::uncertainty()
+{
+	size_t smpCount = fitData->ytrainData->size();
+	size_t paramsCount = fitData->paramsToFit.size();
+	fitData->prediction.resize(smpCount);
+	std::vector<double> deltaPredictions(smpCount, 0.0);
+
+	fitData->objFunc(fitData->prediction);
+	MatArray<double> jcT = zeros<double>(smpCount, paramsCount);
+
+	createJacobianMatrix(fitData, deltaPredictions, jcT);
+
+}
