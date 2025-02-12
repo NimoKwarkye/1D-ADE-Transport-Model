@@ -198,6 +198,9 @@ namespace ntrans
         ImGuiWindowFlags window_flags = 0;
         ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+        void BeginFit();
+        void EndFit();
+
         void SetDarkTheme(ImGuiStyle& style);
         void SetLightTheme(ImGuiStyle& style);
         int init();
@@ -220,6 +223,7 @@ namespace ntrans
         void MarquardtWindow();
         void runMarquardt();
         void UncertaintyWindow();
+        void runUncertainty();
 
         ImVec4 heatMapRGBA(double value);
 
