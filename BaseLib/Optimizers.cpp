@@ -193,6 +193,8 @@ void nims_n::ParamUncertainty::uncertainty()
 {
 	size_t smpCount = fitData->ytrainData->size();
 	size_t paramsCount = fitData->paramsToFit.size();
+	_unc.resize(paramsCount);
+
 	fitData->prediction.resize(smpCount);
 	std::vector<double> deltaPredictions(smpCount, 0.0);
 
@@ -200,5 +202,64 @@ void nims_n::ParamUncertainty::uncertainty()
 	MatArray<double> jcT = zeros<double>(smpCount, paramsCount);
 
 	createJacobianMatrix(fitData, deltaPredictions, jcT);
+	double err = sse(fitData->prediction, *fitData->ytrainData);
+	double tdis{ 1.96 };
+	if (smpCount - 1 < 30) {
+		tdis = studentT[smpCount - 1];
 
+	}
+	auto jc = jcT.getTransposed();
+	auto jcTjc = jcT & jc;
+	auto jcTjc_inv = inv(jcTjc);
+	jcTjc_inv *= err / (double)(smpCount - paramsCount);
+	covarianceMat = jcTjc_inv;
+
+	for (int i{0}; i < paramsCount; i++)
+	{
+		for (int j{ 0 }; j < paramsCount; j++)
+		{
+			if(i == j)
+			{
+				_unc[i] = std::sqrt(jcTjc_inv.at(i, j)) * tdis;
+			}
+
+		}
+	}
+	correlation();
+
+	if (fitData->logger != nullptr && fitData->paramsNames.size() > 0)
+		logResults();
+}
+
+void nims_n::ParamUncertainty::correlation()
+{
+	auto covDiag = covarianceMat.getDiag();
+	std::transform(covDiag.begin(), covDiag.end(), covDiag.begin(), [](const double& x) {return std::sqrt(x); });
+	covDiag = inv(covDiag);
+	correlationMat = covDiag & covarianceMat & covDiag;
+}
+
+void nims_n::ParamUncertainty::logResults()
+{
+	size_t paramsCount = fitData->paramsToFit.size();
+	std::string ret{ "Estimated Uncertainty for Selected Parameters\n" };
+	for (int i{ 0 }; i < paramsCount; i++) {
+		ret += fitData->paramsNames[i] + " = " + std::to_string(*fitData->paramsToFit[i]) + 
+				std::string(" \u00b1 ") + std::to_string(_unc[i]) + "\n";
+	}
+	std::stringstream corrStr;
+	correlationMat.print(corrStr);
+	ret += "\n\n" + std::string("Correlation Matrix\n") + corrStr.str();
+
+	fitData->logger(ret, 0);
+}
+
+nims_n::ParamUncertainty::ParamUncertainty(OptimizationInput* _fitData) : fitData{ _fitData }
+{
+
+}
+
+void nims_n::ParamUncertainty::operator()()
+{
+	uncertainty();
 }

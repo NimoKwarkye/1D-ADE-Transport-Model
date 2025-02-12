@@ -53,6 +53,44 @@ namespace LightThemeColors {
     ImVec4 InputTextBackground = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
 }
 
+void ntrans::TransportUI::BeginFit()
+{
+    fittingInfo.dataPoint = 0;
+    transportData->uiControls.isRunning = true;
+    transportData->uiControls.isCalibration = true;
+    transportData->calibrationType = CalibrationType::Optimizer;
+
+    optInput.stopFitting = &transportData->uiControls.scheduleStop;
+    optInput.ytrainData = &transportData->simOut.observedBT;
+    optInput.paramsToFit.resize(selectedParams.size());
+    std::copy(selectedParams.begin(), selectedParams.end(), optInput.paramsToFit.begin());
+    optInput.paramsNames = selectedParamsNames;
+
+    auto objFuction = [this](std::vector<double>& _out) {
+        modelObject();
+        std::copy(transportData->simOut.predictedBT.begin(), transportData->simOut.predictedBT.end(), _out.begin());
+    };
+
+    auto logFunction = [this](std::string msg, int tp) {
+        logMessages(msg, tp);
+    };
+    optInput.logger = logFunction;
+    optInput.objFunc = objFuction;
+    optInput.cachedErrorCount = fittingInfo.maxStoredData;
+    optInput.iterations = &fittingInfo.iterations;
+    optInput.relativeErrorChange = &fittingInfo.relChange;
+    optInput.dataPoint = &fittingInfo.dataPoint;
+}
+
+void ntrans::TransportUI::EndFit()
+{
+
+    transportData->calibrationType = CalibrationType::None;
+    transportData->uiControls.scheduleStop = false;
+    transportData->uiControls.isRunning = false;
+
+}
+
 void ntrans::TransportUI::SetDarkTheme(ImGuiStyle& style)
 {
     ImGui::StyleColorsDark();
@@ -355,7 +393,7 @@ void ntrans::TransportUI::MainMenu()
                 transportData->uiControls.scheduleStop = true;
                 transportData->uiControls.stopCustomLoop = true;
                 if (transportData->uiControls.isCalibration && transportData->calibrationType == CalibrationType::Optimizer) {
-                    uiEvents.showUncertaintyWindow = true;
+                    //uiEvents.showUncertaintyWindow = true;
                 }
             }
         }
@@ -1783,6 +1821,8 @@ void ntrans::TransportUI::windowBody()
         SensitivityWindow();
     if (uiEvents.showMarquardtWindow)
         MarquardtWindow();
+    if (uiEvents.showUncertaintyWindow)
+        UncertaintyWindow();
 
 }
 
@@ -2000,39 +2040,12 @@ void ntrans::TransportUI::MarquardtWindow()
 
 void ntrans::TransportUI::runMarquardt()
 {
-    fittingInfo.dataPoint = 0;
-    transportData->uiControls.isRunning = true;
-    transportData->uiControls.isCalibration = true;
-    transportData->calibrationType = CalibrationType::Optimizer;
-
-    optInput.stopFitting = &transportData->uiControls.scheduleStop;
-    optInput.ytrainData = &transportData->simOut.observedBT;
-    optInput.paramsToFit.resize(selectedParams.size());
-    std::copy(selectedParams.begin(), selectedParams.end(), optInput.paramsToFit.begin());
-    optInput.paramsNames = selectedParamsNames;
-
-    auto objFuction = [this](std::vector<double>& _out) {
-        modelObject();
-        std::copy(transportData->simOut.predictedBT.begin(), transportData->simOut.predictedBT.end(), _out.begin());
-    };
-
-    auto logFunction = [this](std::string msg, int tp) {
-        logMessages(msg, tp);
-    };
-    optInput.logger = logFunction;
-    optInput.objFunc = objFuction;
-    optInput.cachedErrorCount = fittingInfo.maxStoredData;
-    optInput.iterations = &fittingInfo.iterations;
-    optInput.relativeErrorChange = &fittingInfo.relChange;
-    optInput.dataPoint = &fittingInfo.dataPoint;
+    BeginFit();
 
     nims_n::MarquardtAlgorithm mqAlgm(&optInput, &marquardInput);
     mqAlgm();
 
-    transportData->calibrationType = CalibrationType::None;
-
-    transportData->uiControls.scheduleStop = false;
-    transportData->uiControls.isRunning = false;
+    EndFit();
 
 }
 
@@ -2051,7 +2064,7 @@ void ntrans::TransportUI::UncertaintyWindow()
                 GatherSelected();
 
                 if (selectedParams.size() > 0) {
-
+                    taskExecuter.async_([this]() {runUncertainty(); });
                 }
             }
 
@@ -2060,6 +2073,16 @@ void ntrans::TransportUI::UncertaintyWindow()
         ImGui::EndChild();
         ImGui::End();
     }
+}
+
+void ntrans::TransportUI::runUncertainty()
+{
+    BeginFit();
+
+    nims_n::ParamUncertainty uncAlgm(&optInput);
+    uncAlgm();
+
+    EndFit();
 }
 
 ImVec4 ntrans::TransportUI::heatMapRGBA(double value)
