@@ -317,6 +317,10 @@ namespace ntrans
 		void runModel();
 
 		void createJcReactive(bool isJc = false);
+		double createJcReactiveImmobile(int loc, double mobile_c, double i_conc, bool isJc = false);
+		double oneDfuncIm(double c1, double cOld, double sbEq, double sbEqKn_ex, double sbKin,
+			double sbDeg, double imPhaseConst);
+		double solveImobilePhaseWithSorption(double mobile_c, int loc);
 		double oneDFunctReactive(double c1, double c2, double c3, double cOld, double mD, double uD,
 			double lD, double sbEq, double sbEqKn_ex, double sbKin, double sbDeg, int loc);
 		double langmuirIsotherm(double solConc, double eqConc, double maxSolConc);

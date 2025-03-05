@@ -291,7 +291,8 @@ void ntrans::TransportUI::MainMenu()
                     }
                     catch (const std::exception& er)
                     {
-                        
+						std::string msg = "Error loading observation data file: " + std::string(er.what()) + "\n";
+						logMessages(msg, -1);
                     }
                     
                     /*dataloader(&filaname);
@@ -1823,6 +1824,8 @@ void ntrans::TransportUI::windowBody()
         MarquardtWindow();
     if (uiEvents.showUncertaintyWindow)
         UncertaintyWindow();
+	if (uiEvents.showFlowInterruptsWindow)
+		FlowInterruptsWindow();
 
 }
 
@@ -2083,6 +2086,102 @@ void ntrans::TransportUI::runUncertainty()
     uncAlgm();
 
     EndFit();
+}
+
+void ntrans::TransportUI::FlowInterruptsWindow()
+{
+    if (ImGui::Begin("Define Interrupts", &uiEvents.showFlowInterruptsWindow, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse)) {
+        ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
+        if (ImGui::BeginTable("##scenarioTable", 3, flags)) {
+
+            ImGui::TableSetupColumn("Index", ImGuiTableColumnFlags_WidthFixed, 250.0f);
+            if (transportData->uiControls.usePoreVols) {
+                ImGui::TableSetupColumn("Starting Point (pv)", ImGuiTableColumnFlags_WidthFixed, 250.0f);
+                ImGui::TableSetupColumn("Duration (pv)", ImGuiTableColumnFlags_WidthFixed, 250.0f);
+            }
+            else {
+                ImGui::TableSetupColumn("Starting Point (T)", ImGuiTableColumnFlags_WidthFixed, 250.0f);
+                ImGui::TableSetupColumn("Duration (T)", ImGuiTableColumnFlags_WidthFixed, 250.0f);
+            }
+
+            ImGui::TableHeadersRow();
+
+            for (int i{ 0 }; i < interruptInputData.size(); i++) {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text(std::to_string(i + 1).c_str());
+
+                ImGui::TableSetColumnIndex(1);
+                std::string itemId = "##startTime" + std::to_string(i);
+                ImGui::SetNextItemWidth(250.0f);
+                ImGui::InputText(itemId.c_str(), &interruptInputData[i][0], ImGuiInputTextFlags_CharsDecimal);
+
+                ImGui::TableSetColumnIndex(2);
+                itemId = "##duration" + std::to_string(i);
+                ImGui::SetNextItemWidth(250.0f);
+                ImGui::InputText(itemId.c_str(), &interruptInputData[i][1], ImGuiInputTextFlags_CharsDecimal);
+
+            }
+
+            ImGui::EndTable();
+        }
+
+        if (ImGui::Button("New Flow Interrupt") && !transportData->uiControls.isRunning) {
+
+            interruptInputData.push_back(std::vector<std::string>(2));
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Clear Flow Interrupt") && !transportData->uiControls.isRunning) {
+
+            interruptInputData.clear();
+            transportData->flowInterrupts.clear();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Save Flow Interrupt") && !transportData->uiControls.isRunning) {
+            transportData->flowInterrupts.clear();
+
+            for (int i{ 0 }; i < interruptInputData.size(); i++) {
+                FlowInterrupts oneInterrupt;
+
+                if (!interruptInputData[i][0].empty() && !interruptInputData[i][0].empty()) {
+                    try
+                    {
+                        if (transportData->uiControls.usePoreVols) {
+                            double value = std::stod(interruptInputData[i][0]);
+                            double cgui_velocity = transportData->columnParams.domainLength * 
+                                transportData->transParams.waterContent * 
+                                transportData->transParams.flowRate / 24.0;
+                            oneInterrupt.startTime = transportData->columnParams.domainLength * 
+                                transportData->transParams.waterContent * value / cgui_velocity;
+
+                            value = std::stod(interruptInputData[i][1]);
+                            oneInterrupt.duration = transportData->columnParams.domainLength *
+                                transportData->transParams.waterContent * value / cgui_velocity;
+                        }
+                        else {
+                            oneInterrupt.startTime = std::stod(interruptInputData[i][0]);
+                            oneInterrupt.duration = std::stod(interruptInputData[i][1]);
+                        }
+
+                        transportData->flowInterrupts.push_back(oneInterrupt);
+                    }
+                    catch (const std::exception& emessage)
+                    {
+                        std::string logMessage = "Error CGui->FlowInterrupt Window: \nNot a number entered in interrupts: " + interruptInputData[i][0] + "\t" + interruptInputData[i][1] + "\n"
+                            + std::string(emessage.what());
+                        logMessages(logMessage, -1);
+                    }
+
+
+                }
+            }
+
+            uiEvents.showFlowInterruptsWindow = false;
+        }
+    }
 }
 
 ImVec4 ntrans::TransportUI::heatMapRGBA(double value)

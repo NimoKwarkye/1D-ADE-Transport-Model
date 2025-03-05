@@ -961,10 +961,168 @@ void ntrans::ModelADE::createJcReactive(bool isJc)
 
 }
 
+double ntrans::ModelADE::createJcReactiveImmobile( int loc, double mobile_c, double i_conc, bool isJc)
+{
+	sout->executionLoc = "Immobile Jacobian F";
+	// imobile phase discretization	
+	double tetha_im = tp->waterContent * (1.0 - tp->mo_imPartitionCoefficient);
+	double imPhaseConst = tetha_im > 0.0 ? (dp->timestep * tp->mo_imExchangeRate) / tetha_im : 0.0;
+
+	// handle degredation
+	double degConstant = (tp->degradationRate_soln * dp->timestep);
+
+	double change{ 1e-8 };
+
+	// handle adsorption
+	double sorbedEqMult = tetha_im > 0.0 ? 
+						(tp->bulkDensity * tp->eq_kinPartitionCoefficient) / 
+						tetha_im : 0.0;
+	double sorbedKinMult = tetha_im > 0.0 ? 
+							(tp->bulkDensity * dp->timestep * tp->reactionRateCoefficient) / 
+							tetha_im : 0.0;
+
+	double sorbedKinEq_ex = tp->eq_kinPartitionCoefficient < 1.0 ? 
+							(1.0 - tp->eq_kinPartitionCoefficient) * 
+							sorbedKinMult : 0.0;
+	double sbEqDeg = sorbedEqMult * tp->degradationRate_eqsb;
+	double sbKineticConst = sorbedKinMult * ((dp->timestep * tp->reactionRateCoefficient) *
+											(1.0 - tp->eq_kinPartitionCoefficient)) /
+											(1.0 + (dp->timestep * tp->reactionRateCoefficient) +
+											(dp->timestep * tp->degradationRate_kinsb));
+	double sbKinOldConst = tp->reactionRateCoefficient > 0.0 ? sbKineticConst / 
+							(dp->timestep * tp->reactionRateCoefficient) : 0.0;
+
+
+
+
+	double prvEqIso{ 0.0 };
+	double sorbed{ 0.0 }; double sorbedDelta{ 0.0 }; double sorbedOld{ 0.0 };
+	double sorbedKin{ 0.0 }, sorbedKin_dt{ 0.0 }, sorbedEq{ 0.0 }, sorbedEq_dt{ 0.0 };
+	double sorbedEq_exch{ 0.0 }, sorbedEq_exch_dt{ 0.0 };
+	double sorbed_kin_delta{ 0.0 }, sorbed_kin{ 0.0 };
+	double sorbedDegEq{ 0.0 }, sorbedDegEq_dt{ 0.0 };
+	double c1 = i_conc;
+	simData->reactNodes[loc].imMaxEqConcVal_tmp = c1 > simData->reactNodes[loc].imMaxEqConcVal ? c1 : simData->reactNodes[loc].imMaxEqConcVal;
+	
+	switch (dp->isothermType)
+	{
+	case 1:
+		//sorbed = langmuirIsotherm(c1, im->oldImobilePhase.at(loc,0), im->sorbedEq.at(loc, 0), 
+		//	mdParams->Kl_rev, mdParams->Smax_store, loc, im->klArray, im->smaxArray, im->isforwardArray, mdParams->hysteresis);
+		//sorbedDelta = langmuirIsotherm(c1 + change, *im->klArray[loc], *im->smaxArray[loc]);
+
+		sorbed = langmuirIsotherm(c1, c1, simData->reactNodes[loc].imMaxEqConcVal_tmp);
+		sorbedDelta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxEqConcVal_tmp);
+
+
+		if (simData->reactNodes[loc].imMaxKinConcVal > c1) {
+			sorbed_kin = langmuirIsotherm(c1, c1, simData->reactNodes[loc].imMaxKinConcVal);
+			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxKinConcVal);
+		}
+		else {
+			sorbed_kin = langmuirIsotherm(c1, c1, c1);
+			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, c1);
+		}
+
+
+
+		sorbedEq = sorbed * sorbedEqMult; sorbedEq_dt = sorbedDelta * sorbedEqMult;
+		sorbedDegEq = sorbed * sbEqDeg; sorbedDegEq_dt = sorbedDelta * sbEqDeg;
+
+		sorbedEq_exch = sorbed_kin * sorbedKinEq_ex; sorbedEq_exch_dt = sorbed_kin_delta * sorbedKinEq_ex;
+		sorbedKin = sorbed_kin * sbKineticConst; sorbedKin_dt = sorbed_kin_delta * sbKineticConst;
+
+		break;
+	case 2:
+		sorbed = freundlichIsotherm(c1);
+		sorbedDelta = freundlichIsotherm(c1 + change);
+
+		sorbedEq = sorbed * sorbedEqMult; sorbedEq_dt = sorbedDelta * sorbedEqMult;
+		sorbedDegEq = sorbed * sbEqDeg; sorbedDegEq_dt = sorbedDelta * sbEqDeg;
+
+		sorbed_kin = freundlichIsotherm(c1);
+		sorbed_kin_delta = freundlichIsotherm(c1 + change);
+		sorbedEq_exch = sorbed_kin * sorbedKinEq_ex; sorbedEq_exch_dt = sorbed_kin_delta * sorbedKinEq_ex;
+		sorbedKin = sorbed_kin * sbKineticConst; sorbedKin_dt = sorbed_kin_delta * sbKineticConst;
+		break;
+	case 3:
+		sorbed = linearIsotherm(c1);
+		sorbedDelta = linearIsotherm(c1 + change);
+		sorbedEq = sorbed * sorbedEqMult; sorbedEq_dt = sorbedDelta * sorbedEqMult;
+		sorbedDegEq = sorbed * sbEqDeg; sorbedDegEq_dt = sorbedDelta * sbEqDeg;
+
+		sorbed_kin = linearIsotherm(c1);
+		sorbed_kin_delta = linearIsotherm(c1 + change);
+		sorbedEq_exch = sorbed_kin * sorbedKinEq_ex; sorbedEq_exch_dt = sorbed_kin_delta * sorbedKinEq_ex;
+		sorbedKin = sorbed_kin * sbKineticConst; sorbedKin_dt = sorbed_kin_delta * sbKineticConst;
+		break;
+	default:
+
+		break;
+	}
+	sout->executionLoc = "Immobile Jacobian F";
+	simData->reactNodes[loc].imEqSorbed_tmp = sorbed;
+	simData->reactNodes[loc].imKinSorbed_tmp = sorbed_kin;
+
+	double oldConc = simData->reactNodes[loc].prevImConcValue + 
+					(simData->reactNodes[loc].imPrevEqSorbed * sorbedEqMult) +
+					(simData->reactNodes[loc].imPrevKinSorbed * sbKinOldConst) + (mobile_c * imPhaseConst);
+
+	//pmbSorbedMat[i] = sorbed; // +sorbedEq_exch;
+	if (isJc) {
+		double f_0 = oneDfuncIm(c1, oldConc, sorbedEq, sorbedEq_exch, sorbedKin, sorbedDegEq, imPhaseConst + degConstant);
+		double f_1 = oneDfuncIm(c1 + change, oldConc, sorbedEq_dt, sorbedEq_exch_dt, sorbedKin_dt,
+			sorbedDegEq_dt, imPhaseConst + degConstant);
+
+		return (f_1 - f_0) / change;
+
+	}
+	else {
+		return oneDfuncIm(c1, oldConc, sorbedEq, sorbedEq_exch, sorbedKin, sorbedDegEq, imPhaseConst + degConstant);
+	}
+	sout->executionLoc = "Immobile Jacobian F";
+}
+
+double ntrans::ModelADE::oneDfuncIm(double c1, double cOld, double sbEq, double sbEqKn_ex, 
+							double sbKin, double sbDeg, double imPhaseConst)
+{
+	 
+	return c1 + (c1 * imPhaseConst) + sbEq + sbDeg + sbEqKn_ex - sbKin - cOld;
+}
+
+double ntrans::ModelADE::solveImobilePhaseWithSorption(double mobile_c, int loc)
+{
+	sout->executionLoc = "Immobile Iteration";
+	double iConc = simData->reactNodes[loc].imConcValue;
+	double error = 1e10;//createJacobianIm(im, iConc, loc, mdParams, mobilePhase, false);
+	double delta{ 0.0 };
+	int iteration{ 0 };
+	while (std::abs(error) > 1e-10 && iteration < simData->maxIterations) 
+	{
+
+		delta = createJcReactiveImmobile(loc, mobile_c, iConc, true);
+		error = createJcReactiveImmobile(loc, mobile_c, iConc, false);
+
+		iConc -= error / delta;
+		error = createJcReactiveImmobile(loc, mobile_c, iConc, false);
+		iteration++;
+	}
+	sout->imobileIterations = iteration;
+	return iConc;
+}
+
 double ntrans::ModelADE::oneDFunctReactive(double c1, double c2, double c3, double cOld, double mD, double uD, double lD, double sbEq, double sbEqKn_ex, double sbKin, double sbDeg, int loc)
 {
 	double imobilePhase{ 0.0 };
-	//TODO implement immobile phase
+	if (!ignoreImmobileRegions)
+	{
+		auto t1 = high_resolution_clock::now();
+		imobilePhase = solveImobilePhaseWithSorption(c1, loc);
+		auto t2 = high_resolution_clock::now();
+		duration<double, std::milli> ms_double_nm = t2 - t1;
+		sout->imobileSolTime = ms_double_nm.count();
+		simData->reactNodes[loc].imConcValue = imobilePhase;
+	}
 	double tetha_m =tp->waterContent * tp->mo_imPartitionCoefficient;
 	double imPhaseConst = tetha_m > 0.0 ? (dp->timestep * tp->mo_imExchangeRate) / tetha_m : 0.0;
 

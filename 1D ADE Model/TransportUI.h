@@ -224,6 +224,7 @@ namespace ntrans
         void runMarquardt();
         void UncertaintyWindow();
         void runUncertainty();
+        void FlowInterruptsWindow();
 
         ImVec4 heatMapRGBA(double value);
 
