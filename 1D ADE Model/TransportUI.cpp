@@ -1826,6 +1826,8 @@ void ntrans::TransportUI::windowBody()
         UncertaintyWindow();
 	if (uiEvents.showFlowInterruptsWindow)
 		FlowInterruptsWindow();
+    if (uiEvents.showScenerioLoopWindow)
+        multiScenarioLoopWindow();
 
 }
 
@@ -2184,6 +2186,110 @@ void ntrans::TransportUI::FlowInterruptsWindow()
     }
 }
 
+void ntrans::TransportUI::multiScenarioLoopWindow()
+{
+    if (ImGui::Begin("Multi-Scenario Loop", &uiEvents.showScenerioLoopWindow, 
+        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse))
+    {
+        ImGui::SetNextItemWidth(150.0f);
+        if (ImGui::BeginCombo("Select Parameter##loopsim", scenarioLoop.paramNames[scenarioLoop.selectedName].data()))
+        {
+			for (int n = 0; n < scenarioLoop.paramNames.size(); n++)
+			{
+				const bool is_selected = (scenarioLoop.selectedName == n);
+				if (ImGui::Selectable(scenarioLoop.paramNames[n].data(), is_selected))
+					scenarioLoop.selectedName = n;
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();
+			}
+            
+            ImGui::EndCombo();
+        }
+
+        ImGui::SameLine();
+
+		ImGui::SetNextItemWidth(150.0f);
+        if (ImGui::BeginCombo("Select Level##loopsim", ("level " + std::to_string(scenarioLoop.selectedLevel)).c_str()))
+        {
+			for (int n{ 0 }; n < scenarioLoop.maxLevels; n++) {
+				const bool is_selected = (scenarioLoop.selectedLevel == n);
+				if (ImGui::Selectable(("level " + std::to_string(n)).c_str(), is_selected))
+					scenarioLoop.selectedLevel = n;
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+        }
+		ImGui::SameLine();
+
+		if (ImGui::Button("Add Parameter##loopsim")) {
+			
+			scenarioLoop.addData(scenarioLoop.selectedLevel, 
+                scenarioLoop.paramNames[scenarioLoop.selectedName]);
+		}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Start Simulation##loopsim"))
+		{
+			
+		}
+
+		ImGui::Separator();
+		for (auto& [level, loopData] : scenarioLoop.scenarioLoopData) {
+            if(loopData.size()>0)
+            {
+                ImGui::SeparatorText(("level " + std::to_string(level) + "##speratortxt").c_str());
+                std::vector<std::string> rm_paramNames{};
+                for (int i{ 0 }; i < loopData.size(); i++) 
+                {
+                    ImGui::SetNextItemWidth(150.0f);
+                    ImGui::Text(loopData[i].paramName.c_str());
+                    ImGui::SameLine();
+                    if (loopData[i].enterRange)
+                    {
+                        ImGui::SetNextItemWidth(150.0f);
+                        ImGui::InputDouble(("start##loopsimstart" + std::to_string(i) + loopData[i].paramName).c_str(),
+                            &loopData[i].rangeStart, 1e-2, 1.0);
+                        ImGui::SameLine();
+                        ImGui::SetNextItemWidth(150.0f);
+                        ImGui::InputDouble(("end##loopsimend" + std::to_string(i) + loopData[i].paramName).c_str(), 
+                            &loopData[i].rangeEnd, 1e-2, 1.0);
+                        ImGui::SameLine();
+                        ImGui::SetNextItemWidth(150.0f);
+                        ImGui::InputDouble(("step##loopsimstep" + std::to_string(i) + loopData[i].paramName).c_str(), 
+                            &loopData[i].rangeStep, 1e-2, 1.0);
+                    }
+                    else
+                    {
+                        ImGui::SetNextItemWidth(450.0f);
+                        ImGui::InputText(("values##loopsimvalues" + std::to_string(i) + loopData[i].paramName).c_str(), 
+                            &loopData[i].textInput,
+                            ImGuiInputTextFlags_CallbackCharFilter,
+                            CharFilterCallback);
+                    }
+
+                    ImGui::SameLine();
+
+                    ImGui::Checkbox(("use range##enterRange" + std::to_string(i) + loopData[i].paramName).c_str(),
+                                    &loopData[i].enterRange);
+
+                    ImGui::SameLine();
+                    if (ImGui::Button(("X##loopsim" + std::to_string(i) + loopData[i].paramName).c_str()))
+                    {
+                        rm_paramNames.push_back(loopData[i].paramName);
+                    }
+                }
+                for (auto& name : rm_paramNames) {
+                    scenarioLoop.removeData(level, name);
+                }
+            }
+			
+		}
+
+		ImGui::End();
+    }
+}
+
 ImVec4 ntrans::TransportUI::heatMapRGBA(double value)
 {
     ImVec4 rgbColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -2334,3 +2440,15 @@ bool ntrans::LoadTextureFromFile(const char* filename, GLuint* out_texture, int*
 
     return true;
 }
+
+int ntrans::CharFilterCallback(ImGuiInputTextCallbackData* data)
+{
+    if (std::isdigit(data->EventChar) || 
+        data->EventChar == ',' || 
+        data->EventChar == '.')
+    {
+        return 0;
+    }
+    return 1;
+}
+

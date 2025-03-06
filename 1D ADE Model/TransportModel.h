@@ -10,6 +10,7 @@
 #include <fstream>
 #include <filesystem>
 #include <sstream>
+#include <functional>
 
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
@@ -66,6 +67,13 @@ namespace ntrans
 		double imConcValue{ 0.0 };
 		double prevImConcValue{ 0.0 };
 
+	};
+
+	struct MultiSimData
+	{
+		std::vector<double*> variablesToModify{};
+		std::vector<std::vector<double>> variableData{};
+		std::vector<std::string> variableNames{};
 	};
 
 	struct FlowInterrupts
@@ -278,6 +286,7 @@ namespace ntrans
 		std::vector<ScenarioParams>scenarios{};
 		std::vector<FlowInterrupts>flowInterrupts{ };
 		std::vector<SensitivityAnalysisParams>sensitivityAnalysis{ SensitivityAnalysisParams() };
+		std::vector<MultiSimData>multiSimData{ };
 		CalibrationType calibrationType{ CalibrationType::None };
 
 		int maxIterations{ 200 };
@@ -357,7 +366,77 @@ namespace ntrans
 		std::vector<double> triDiagHelper{};
 	};
 
-
 	
+
+	class MultipleSimualation
+	{
+	public:
+		MultipleSimualation(MultiSimData simData, std::function<void(std::string, bool& stopSims)>funct):
+			variablesToModify(simData.variablesToModify), 
+			variableData(simData.variableData), 
+			variableNames(simData.variableNames),
+			innerLoop(funct)
+		{
+			min_cnt = variableData[0].size();
+			for (size_t i = 1; i < variableData.size(); i++)
+			{
+				if (variableData[i].size() < min_cnt)
+				{
+					min_cnt = variableData[i].size();
+				}
+			}
+			cachedVariables.resize(variablesToModify.size());
+			for (size_t i = 0; i < variablesToModify.size(); i++)
+			{
+				cachedVariables[i] = *variablesToModify[i];
+			}
+		}
+
+		inline size_t size()
+		{
+
+			return min_cnt;
+		}
+
+		inline void operator()(std::string fileName, bool& stopSims)
+		{
+			size_t varCount{ 0 };
+			while (varCount < min_cnt && !stopSims)
+			{
+				std::string passdown = "";
+				for (size_t i{ 0 }; i < variableData.size(); i++)
+				{
+					*variablesToModify[i] = variableData[i][varCount];
+
+					std::string c_name = std::to_string(*variablesToModify[i]);
+					c_name = c_name.substr(0, c_name.find_first_of('.')) + "_" + 
+						c_name.substr(c_name.find_first_of('.') + 1, c_name.size());
+
+					passdown += fileName + variableNames[i] + "_" + c_name + "_";
+				}
+				innerLoop(passdown, stopSims);
+				varCount++;
+			}
+
+			for (size_t i{ 0 }; i < variablesToModify.size(); i++)
+				*variablesToModify[i] = cachedVariables[i];
+
+		}
+		
+
+	private:
+		std::vector<double*> variablesToModify{};
+		std::vector<std::vector<double>> variableData{};
+		std::vector<std::string> variableNames{};
+		size_t min_cnt{ 0 };
+		std::function<void(std::string, bool& stopSims)> innerLoop;
+		std::vector<double>cachedVariables{};
+	};
+	
+
+	inline void runMultiScenarioLoop(SimulationData* simData)
+	{
+
+	}
 }
 

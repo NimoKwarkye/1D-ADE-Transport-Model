@@ -12,6 +12,7 @@
 #include <ShlObj.h>
 #include <thread>
 #include <ctime>
+#include <map>
 #include "imgui_stdlib.h"
 
 
@@ -116,6 +117,89 @@ namespace ntrans
         bool saveIsothermData{ false };
     };
 
+    struct LoopData
+    {
+		int level{ 0 };
+		bool enterRange{ false };
+		double rangeStart{ 0.0 };
+		double rangeEnd{ 0.0 };
+		double rangeStep{ 0.0 };
+		std::string textInput{ "" };
+		std::string paramName{ "" };
+
+		LoopData(int pLevel, std::string pName) : level(pLevel), paramName(pName)
+        {
+        }
+    };
+
+    
+    struct ScenarioLoopInfo
+    {
+		
+        std::map<int, std::vector<LoopData>>scenarioLoopData;
+        std::vector<std::string>paramNames{"concentration",
+			                                "peclet", 
+                                            "flow_rate",
+											"smax_nf", 
+                                            "isotherm_K", 
+											 "retardation", 
+                                            "damkohler", 
+                                            "hysteresis_coef",
+                                            "sol_deg_rate",
+			                                "eq_sorbed_deg_rate", 
+                                            "kin_sorbed_deg_rate"     
+                                                };
+        std::vector<std::string>addedParams;
+		int maxLevels{ 10 };
+		int selectedLevel{ 0 };
+		int selectedName{ 0 };
+
+		ScenarioLoopInfo()
+		{
+			for (int i = 0; i < maxLevels; i++)
+			{
+				scenarioLoopData[i] = std::vector<LoopData>{};
+			}
+		}
+
+		bool addData(int level, std::string pName)
+		{
+			if (std::find(addedParams.begin(), addedParams.end(), pName) == addedParams.end())
+			{
+				addedParams.push_back(pName);
+			}
+            else
+            {
+                return false;
+            } 
+            
+			scenarioLoopData[level].push_back(LoopData(level, pName));
+			return true;
+			
+		}
+
+        void removeData(int level, std::string pName)
+        {
+			if (scenarioLoopData.find(level) != scenarioLoopData.end())
+			{
+				auto& loopData = scenarioLoopData[level];
+				auto it = std::find_if(loopData.begin(), loopData.end(), [pName](LoopData& lData) {return lData.paramName == pName; });
+				if (it != loopData.end())
+				{
+					loopData.erase(it);
+				}
+				auto it2 = std::find(addedParams.begin(), addedParams.end(), pName);
+				if (it2 != addedParams.end())
+				{
+					addedParams.erase(it2);
+				}
+			}
+        }
+        
+    };
+
+    
+
     struct ObservedDataInfo
     {
         int dataColumn{ 0 };
@@ -171,9 +255,11 @@ namespace ntrans
         ModelADE modelObject;
         UIEventsToggle uiEvents;
         ObservedDataInfo obsDataInfo;
+		ScenarioLoopInfo scenarioLoop;
         nims_n::FileExtensions fileExtensions;
         nims_n::TaskSystemLocal taskExecuter;
         nims_n::MarquardtInput marquardInput;
+
         
 
         ImageData loadIcon;
@@ -186,6 +272,7 @@ namespace ntrans
 
         std::vector<isSelected>lsSensitivityParams{ isSelected() };
         std::vector<TransportSimEvents>transportEvents;
+		
         SensitivityControls sensiControls;
         ParamsNames displayNames;
 
@@ -225,6 +312,7 @@ namespace ntrans
         void UncertaintyWindow();
         void runUncertainty();
         void FlowInterruptsWindow();
+		void multiScenarioLoopWindow();
 
         ImVec4 heatMapRGBA(double value);
 
@@ -237,6 +325,7 @@ namespace ntrans
 
     void glfw_error_callback(int error, const char* description);
     bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height);
+    int CharFilterCallback(ImGuiInputTextCallbackData* data);
 }
 
 
