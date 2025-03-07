@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <sstream>
 #include <functional>
+#include <map>
 
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
@@ -287,6 +288,8 @@ namespace ntrans
 		std::vector<FlowInterrupts>flowInterrupts{ };
 		std::vector<SensitivityAnalysisParams>sensitivityAnalysis{ SensitivityAnalysisParams() };
 		std::vector<MultiSimData>multiSimData{ };
+		std::vector<std::function<void(SimulationData*)>> multiSimDependencies{};
+
 		CalibrationType calibrationType{ CalibrationType::None };
 
 		int maxIterations{ 200 };
@@ -366,12 +369,91 @@ namespace ntrans
 		std::vector<double> triDiagHelper{};
 	};
 
-	
 
-	class MultipleSimualation
+	struct LoopData
+	{
+		int level{ 0 };
+		bool enterRange{ false };
+		double rangeStart{ 0.0 };
+		double rangeEnd{ 0.0 };
+		double rangeStep{ 0.0 };
+		std::string textInput{ "" };
+		std::string paramName{ "" };
+
+		LoopData(int pLevel, std::string pName) : level(pLevel), paramName(pName)
+		{
+		}
+	};
+	
+	struct ScenarioLoopInfo
+	{
+
+		std::map<int, std::vector<LoopData>>scenarioLoopData;
+		std::vector<std::string>paramNames{ "concentration",
+											"peclet",
+											"flow_rate",
+											"smax_nf",
+											"isotherm_K",
+											"damkohler",
+											"hysteresis_coef",
+											"sol_deg_rate",
+											"eq_sorbed_deg_rate",
+											"kin_sorbed_deg_rate"
+		};
+		std::vector<std::string>addedParams;
+		int maxLevels{ 10 };
+		int selectedLevel{ 0 };
+		int selectedName{ 0 };
+
+		ScenarioLoopInfo()
+		{
+			for (int i = 0; i < maxLevels; i++)
+			{
+				scenarioLoopData[i] = std::vector<LoopData>{};
+			}
+		}
+
+		bool addData(int level, std::string pName)
+		{
+			if (std::find(addedParams.begin(), addedParams.end(), pName) == addedParams.end())
+			{
+				addedParams.push_back(pName);
+			}
+			else
+			{
+				return false;
+			}
+
+			scenarioLoopData[level].push_back(LoopData(level, pName));
+			return true;
+
+		}
+
+		void removeData(int level, std::string pName)
+		{
+			if (scenarioLoopData.find(level) != scenarioLoopData.end())
+			{
+				auto& loopData = scenarioLoopData[level];
+				auto it = std::find_if(loopData.begin(), loopData.end(), [pName](LoopData& lData) {return lData.paramName == pName; });
+				if (it != loopData.end())
+				{
+					loopData.erase(it);
+				}
+				auto it2 = std::find(addedParams.begin(), addedParams.end(), pName);
+				if (it2 != addedParams.end())
+				{
+					addedParams.erase(it2);
+				}
+			}
+		}
+
+	};
+
+
+	class MultipleSimulation
 	{
 	public:
-		MultipleSimualation(MultiSimData simData, std::function<void(std::string, bool& stopSims)>funct):
+		MultipleSimulation(MultiSimData simData, std::function<void(std::string, bool& stopSims)>funct):
 			variablesToModify(simData.variablesToModify), 
 			variableData(simData.variableData), 
 			variableNames(simData.variableNames),
@@ -432,10 +514,192 @@ namespace ntrans
 		std::function<void(std::string, bool& stopSims)> innerLoop;
 		std::vector<double>cachedVariables{};
 	};
-	
 
-	inline void runMultiScenarioLoop(SimulationData* simData)
+	inline double langmuirIsotherm(double eqConc, double kl, double smax)
 	{
+		return (kl * eqConc * smax) / (1 + (eqConc * kl));
+	}
+
+	inline double freundlichIsotherm(double eqConc, double kn, double nf)
+	{
+		return kn * std::pow(eqConc, nf);
+	}
+	
+	inline double linearIsotherm(double eqConc, double k)
+	{
+		return k * eqConc;
+	}
+
+	inline double retardationCoeff(SimulationData* mdp)
+	{
+		if (mdp->columnParams.isothermType == 1)
+		{
+			double s_eq = langmuirIsotherm(mdp->transParams.pulseConcentration,
+				mdp->transParams.isothermConstant, mdp->transParams.adsorptionCapacity);
+
+
+			return 1.0 + (s_eq * mdp->transParams.bulkDensity / 
+						mdp->transParams.pulseConcentration) /
+						mdp->transParams.waterContent;
+		}
+		else if (mdp->columnParams.isothermType == 2)
+		{
+			double s_eq = freundlichIsotherm(mdp->transParams.pulseConcentration,
+				mdp->transParams.isothermConstant, mdp->transParams.adsorptionCapacity);
+
+			return 1.0 + (s_eq * mdp->transParams.bulkDensity / 
+				mdp->transParams.pulseConcentration) / mdp->transParams.waterContent;
+		}
+		else if (mdp->columnParams.isothermType == 3)
+		{
+			double s_eq = linearIsotherm(mdp->transParams.pulseConcentration,
+				mdp->transParams.isothermConstant);
+			return 1.0 + (s_eq * mdp->transParams.bulkDensity) /
+				mdp->transParams.waterContent;
+		}
+
+		return 0.0;
+	}
+
+
+	inline void set_rt_from_da(SimulationData* simData)
+	{
+		double rd = retardationCoeff(simData);
+		double velocity{ 0 };
+		
+		if (simData->uiControls.usePoreVols) {
+			velocity = simData->columnParams.domainLength * 
+				simData->transParams.waterContent * simData->transParams.flowRate / 24.0;
+		}
+		else {
+			velocity = simData->transParams.flowRate;
+		}
+		double vt = (velocity / simData->transParams.waterContent) / rd;
+		simData->transParams.reactionRateCoefficient = simData->simOut.damkohler_prd * 
+							vt / simData->columnParams.domainLength;
+	}
+
+	inline void set_disp_from_pe(SimulationData* simData)
+	{
+		simData->transParams.dispersionLength = simData->columnParams.domainLength / simData->simOut.peclet;
+	}
+
+	inline std::vector<double> delimited_string_to_vec(std::string str)
+	{
+		std::stringstream ss(str);
+		std::string on_val{ "" };
+		std::vector<double> ret_data{};
+		while (std::getline(ss, on_val, ','))
+		{
+			ret_data.push_back(std::stod(on_val));
+		}
+		return ret_data;
+	}
+
+	inline std::vector<double> generate_range(double min, double max, double step)
+	{
+		std::vector<double> ret_data{};
+		for (double val{ min }; val < max; val += step)
+			ret_data.push_back(val);
+		return ret_data;
+	}
+
+
+	inline void prepareLoopData(ScenarioLoopInfo& data, SimulationData* simData)
+	{
+		auto set_data = [](double* varToModify, std::string pName, LoopData& loopData, MultiSimData& one_data)
+			{ 
+				one_data.variablesToModify.push_back(varToModify);
+				one_data.variableNames.push_back(pName);
+
+				if (loopData.enterRange)
+				{
+					one_data.variableData.push_back(generate_range(loopData.rangeStart, loopData.rangeEnd, loopData.rangeStep));
+				}
+				else
+				{
+					one_data.variableData.push_back(delimited_string_to_vec(loopData.textInput));
+				}
+			};
+
+		for (auto [level, loopData] : data.scenarioLoopData)
+		{
+			MultiSimData oneLevelData;
+			for (size_t j{0}; j < loopData.size(); j++)
+			{
+				if (loopData[j].paramName == "concentration")
+				{
+					set_data(&simData->transParams.pulseConcentration, "concentration", loopData[j], oneLevelData);
+
+				}
+				else if(loopData[j].paramName == "peclet")
+				{
+					set_data(&simData->simOut.peclet, "peclet", loopData[j], oneLevelData);
+					simData->multiSimDependencies.push_back(set_disp_from_pe);
+				}
+				else if (loopData[j].paramName == "flow_rate")
+				{
+					set_data(&simData->transParams.flowRate, "flow_rate", loopData[j], oneLevelData);
+				}
+				else if (loopData[j].paramName == "smax_nf")
+				{
+					set_data(&simData->transParams.adsorptionCapacity, "smax_nf", loopData[j], oneLevelData);
+				}
+
+				else if (loopData[j].paramName == "isotherm_K")
+				{
+					set_data(&simData->transParams.isothermConstant, "isotherm_K", loopData[j], oneLevelData);
+				}
+				else if (loopData[j].paramName == "damkohler")
+				{
+					set_data(&simData->simOut.damkohler_prd, "damkohler", loopData[j], oneLevelData);
+					simData->multiSimDependencies.push_back(set_rt_from_da);
+				}
+				else if (loopData[j].paramName == "hysteresis_coef")
+				{
+					set_data(&simData->transParams.hysteresisCoefficient, "hysteresis_coef", loopData[j], oneLevelData);
+				}
+				else if (loopData[j].paramName == "sol_deg_rate")
+				{
+					set_data(&simData->transParams.degradationRate_soln, "sol_deg_rate", loopData[j], oneLevelData);
+				}
+				else if (loopData[j].paramName == "eq_sorbed_deg_rate")
+				{
+					set_data(&simData->transParams.degradationRate_eqsb, "eq_sorbed_deg_rate", loopData[j], oneLevelData);
+				}
+				else if (loopData[j].paramName == "kin_sorbed_deg_rate")
+				{
+					set_data(&simData->transParams.degradationRate_kinsb, "kin_sorbed_deg_rate", loopData[j], oneLevelData);
+				}
+				
+				simData->multiSimData.push_back(oneLevelData);
+			}
+		}
+	}
+
+	inline void runMultiScenarioLoop(ScenarioLoopInfo& data, SimulationData* simData)
+	{
+		prepareLoopData(data, simData);
+		size_t lastIndex = simData->multiSimData.size() - 1;
+		
+		MultipleSimulation multiSim (simData->multiSimData[lastIndex],
+						[simData](std::string passdown, bool& stopSims) 
+						{
+						
+								for (auto& dep : simData->multiSimDependencies)
+									dep(simData);
+								for (int scn{0}; scn < simData->scenarios.size(); scn++)
+								{
+									for (int dt{0}; dt < simData->scenarios[scn].modifiedParams.size(); dt++)
+									{
+										if (simData->scenarios[scn].modifiedParams[dt] == INPUTMASS &&
+											simData->scenarios[scn].paramValues[dt] > 1e-10)
+										{
+											simData->scenarios[scn].paramValues[dt] = simData->transParams.pulseConcentration;
+										}
+									}
+								}
+						});
 
 	}
 }

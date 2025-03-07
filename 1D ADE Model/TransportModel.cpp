@@ -873,16 +873,16 @@ void ntrans::ModelADE::createJcReactive(bool isJc)
 		case 1:
 
 			sorbed = langmuirIsotherm(c1, c1, simData->reactNodes[i].maxEqConcVal_tmp);
-			sorbedDelta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[i].maxEqConcVal_tmp);
+			sorbedDelta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[i].maxEqConcVal_tmp + change);
 
 			
 			if (simData->reactNodes[i].maxKinConcVal > c1) {
 				sorbed_kin = langmuirIsotherm(c1, c1, simData->reactNodes[i].maxKinConcVal);
-				sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[i].maxKinConcVal);
+				sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[i].maxKinConcVal + change);
 			}
 			else {
 				sorbed_kin = langmuirIsotherm(c1, c1, c1);
-				sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, c1);
+				sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, c1 + change);
 			}
 
 
@@ -1012,16 +1012,16 @@ double ntrans::ModelADE::createJcReactiveImmobile( int loc, double mobile_c, dou
 		//sorbedDelta = langmuirIsotherm(c1 + change, *im->klArray[loc], *im->smaxArray[loc]);
 
 		sorbed = langmuirIsotherm(c1, c1, simData->reactNodes[loc].imMaxEqConcVal_tmp);
-		sorbedDelta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxEqConcVal_tmp);
+		sorbedDelta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxEqConcVal_tmp + change);
 
 
 		if (simData->reactNodes[loc].imMaxKinConcVal > c1) {
 			sorbed_kin = langmuirIsotherm(c1, c1, simData->reactNodes[loc].imMaxKinConcVal);
-			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxKinConcVal);
+			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxKinConcVal + change);
 		}
 		else {
 			sorbed_kin = langmuirIsotherm(c1, c1, c1);
-			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, c1);
+			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, c1 + change);
 		}
 
 
@@ -1136,13 +1136,19 @@ double ntrans::ModelADE::langmuirIsotherm(double solConc, double eqConc, double 
 	if (eqConc > minConc)
 	{
 		return (tp->isothermConstant * tp->adsorptionCapacity * solConc) /
-			(tp->isothermConstant * solConc + std::pow(eqConc / maxSolConc, tp->hysteresisCoefficient));
+			(tp->isothermConstant * solConc + std::pow(solConc / maxSolConc, tp->hysteresisCoefficient));
 	}
 
 	if (maxSolConc > 0.0 && tp->hysteresisCoefficient >= 1.0)
 	{
 		return (tp->isothermConstant * tp->adsorptionCapacity) /
 			(tp->isothermConstant  + 1.0 / maxSolConc);
+	}
+
+	if (maxSolConc > 0.0) {
+		return (tp->isothermConstant * tp->adsorptionCapacity * std::pow(solConc, 1.0 - tp->hysteresisCoefficient)) /
+			(tp->isothermConstant * std::pow(solConc, 1.0 - tp->hysteresisCoefficient) +
+				(1.0 / std::pow(maxSolConc, tp->hysteresisCoefficient)));
 	}
 	return (tp->isothermConstant * tp->adsorptionCapacity * solConc) /
 		(tp->isothermConstant * solConc + 1.0);
