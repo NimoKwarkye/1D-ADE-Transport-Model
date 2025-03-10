@@ -215,7 +215,7 @@ namespace nims_n
 			readData(csvFile, delimit, hasHeader, skipRows, skipCols, indexCol);
 		}
 
-		/*ReadCSV(const MatArray<T>& mat, const std::vector<std::string>& headers = {}, const std::vector<std::string>& index={}, std::string indexCol = "index")
+		ReadCSV(const MatArray<T>& mat, const std::vector<std::string>& headers = {}, const std::vector<std::string>& index={}, std::string indexCol = "index")
 		{
 			_nrows = mat.rows();
 			_ncols = mat.columns();
@@ -249,7 +249,7 @@ namespace nims_n
 			}
 			std::copy( mat.begin(), mat.end(), _data.begin());
 
-		}*/
+		}
 
 		ReadCSV(const std::vector<T>& mat, std::int64_t rows, std::int64_t cols, const std::vector<std::string>& headers = {}, const std::vector<std::string>& index = {}, std::string indexCol="index")
 		{
@@ -559,7 +559,7 @@ namespace nims_n
 		size_t _printWidth{ 10 };
 	};
 
-	/*template<typename T>
+	template<typename T>
 	inline void saveCSV(std::string fileName, const MatArray<T>& mat, char delimit=',', const std::vector<std::string>& columnNames = {}, 
 		const std::vector<std::string>& rowIndicies = {}, std::string indexColName = "index")
 	{
@@ -567,7 +567,7 @@ namespace nims_n
 		bool wrideIndex = !rowIndicies.empty();
 		ReadCSV<T> _csv = ReadCSV<T>(mat, columnNames, rowIndicies, indexColName);
 		_csv.writeCSV(fileName, delimit, writeHeader, wrideIndex);
-	}*/
+	}
 
 	template<typename T>
 	inline void saveCSV(std::string fileName, const std::vector<T>& mat, int nrows, int ncols, char delimit = ',', const std::vector<std::string>& columnNames = {},

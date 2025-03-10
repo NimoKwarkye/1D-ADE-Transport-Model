@@ -13,6 +13,9 @@
 #include <functional>
 #include <map>
 
+#include "MatArray.h"
+#include "ReadCSV.h"
+
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
@@ -75,6 +78,85 @@ namespace ntrans
 		std::vector<double*> variablesToModify{};
 		std::vector<std::vector<double>> variableData{};
 		std::vector<std::string> variableNames{};
+	};
+
+	struct LoopData
+	{
+		int level{ 0 };
+		bool enterRange{ false };
+		double rangeStart{ 0.0 };
+		double rangeEnd{ 0.0 };
+		double rangeStep{ 0.0 };
+		std::string textInput{ "" };
+		std::string paramName{ "" };
+
+		LoopData(int pLevel, std::string pName) : level(pLevel), paramName(pName)
+		{
+		}
+	};
+
+	struct ScenarioLoopInfo
+	{
+
+		std::map<int, std::vector<LoopData>>scenarioLoopData;
+		std::vector<std::string>paramNames{ "concentration",
+											"peclet",
+											"flow_rate",
+											"smax_nf",
+											"isotherm_K",
+											"damkohler",
+											"hysteresis_coef",
+											"sol_deg_rate",
+											"eq_sorbed_deg_rate",
+											"kin_sorbed_deg_rate"
+		};
+		std::vector<std::string>addedParams;
+		int maxLevels{ 10 };
+		int selectedLevel{ 0 };
+		int selectedName{ 0 };
+
+		ScenarioLoopInfo()
+		{
+			for (int i = 0; i < maxLevels; i++)
+			{
+				scenarioLoopData[i] = std::vector<LoopData>{};
+			}
+		}
+
+		bool addData(int level, std::string pName)
+		{
+			if (std::find(addedParams.begin(), addedParams.end(), pName) == addedParams.end())
+			{
+				addedParams.push_back(pName);
+			}
+			else
+			{
+				return false;
+			}
+
+			scenarioLoopData[level].push_back(LoopData(level, pName));
+			return true;
+
+		}
+
+		void removeData(int level, std::string pName)
+		{
+			if (scenarioLoopData.find(level) != scenarioLoopData.end())
+			{
+				auto& loopData = scenarioLoopData[level];
+				auto it = std::find_if(loopData.begin(), loopData.end(), [pName](LoopData& lData) {return lData.paramName == pName; });
+				if (it != loopData.end())
+				{
+					loopData.erase(it);
+				}
+				auto it2 = std::find(addedParams.begin(), addedParams.end(), pName);
+				if (it2 != addedParams.end())
+				{
+					addedParams.erase(it2);
+				}
+			}
+		}
+
 	};
 
 	struct FlowInterrupts
@@ -289,6 +371,7 @@ namespace ntrans
 		std::vector<SensitivityAnalysisParams>sensitivityAnalysis{ SensitivityAnalysisParams() };
 		std::vector<MultiSimData>multiSimData{ };
 		std::vector<std::function<void(SimulationData*)>> multiSimDependencies{};
+		ScenarioLoopInfo loopData;
 
 		CalibrationType calibrationType{ CalibrationType::None };
 
@@ -370,84 +453,7 @@ namespace ntrans
 	};
 
 
-	struct LoopData
-	{
-		int level{ 0 };
-		bool enterRange{ false };
-		double rangeStart{ 0.0 };
-		double rangeEnd{ 0.0 };
-		double rangeStep{ 0.0 };
-		std::string textInput{ "" };
-		std::string paramName{ "" };
-
-		LoopData(int pLevel, std::string pName) : level(pLevel), paramName(pName)
-		{
-		}
-	};
 	
-	struct ScenarioLoopInfo
-	{
-
-		std::map<int, std::vector<LoopData>>scenarioLoopData;
-		std::vector<std::string>paramNames{ "concentration",
-											"peclet",
-											"flow_rate",
-											"smax_nf",
-											"isotherm_K",
-											"damkohler",
-											"hysteresis_coef",
-											"sol_deg_rate",
-											"eq_sorbed_deg_rate",
-											"kin_sorbed_deg_rate"
-		};
-		std::vector<std::string>addedParams;
-		int maxLevels{ 10 };
-		int selectedLevel{ 0 };
-		int selectedName{ 0 };
-
-		ScenarioLoopInfo()
-		{
-			for (int i = 0; i < maxLevels; i++)
-			{
-				scenarioLoopData[i] = std::vector<LoopData>{};
-			}
-		}
-
-		bool addData(int level, std::string pName)
-		{
-			if (std::find(addedParams.begin(), addedParams.end(), pName) == addedParams.end())
-			{
-				addedParams.push_back(pName);
-			}
-			else
-			{
-				return false;
-			}
-
-			scenarioLoopData[level].push_back(LoopData(level, pName));
-			return true;
-
-		}
-
-		void removeData(int level, std::string pName)
-		{
-			if (scenarioLoopData.find(level) != scenarioLoopData.end())
-			{
-				auto& loopData = scenarioLoopData[level];
-				auto it = std::find_if(loopData.begin(), loopData.end(), [pName](LoopData& lData) {return lData.paramName == pName; });
-				if (it != loopData.end())
-				{
-					loopData.erase(it);
-				}
-				auto it2 = std::find(addedParams.begin(), addedParams.end(), pName);
-				if (it2 != addedParams.end())
-				{
-					addedParams.erase(it2);
-				}
-			}
-		}
-
-	};
 
 
 	class MultipleSimulation
@@ -677,13 +683,16 @@ namespace ntrans
 		}
 	}
 
-	inline void runMultiScenarioLoop(ScenarioLoopInfo& data, SimulationData* simData)
+	inline void runMultiScenarioLoop(SimulationData* simData)
 	{
-		prepareLoopData(data, simData);
+		prepareLoopData(simData->loopData, simData);
 		size_t lastIndex = simData->multiSimData.size() - 1;
-		
-		MultipleSimulation multiSim (simData->multiSimData[lastIndex],
-						[simData](std::string passdown, bool& stopSims) 
+		std::string simDir = simData->columnParams.simDir + "/multiple_simulation/";
+		if (!std::filesystem::exists(simDir))
+			std::filesystem::create_directories(simDir);
+
+		MultipleSimulation lastSim (simData->multiSimData[lastIndex],
+						[simData, simDir](std::string passdown, bool& stopSims) 
 						{
 						
 								for (auto& dep : simData->multiSimDependencies)
@@ -699,7 +708,31 @@ namespace ntrans
 										}
 									}
 								}
+
+								ModelADE model(simData);
+								model();
+								size_t dataLen = simData->simOut.predictedBT.size();
+								nims_n::MatArray<double> dataMat = nims_n::zeros<double>(dataLen, 4);
+								for (size_t i{ 0 }; i < dataLen; i++)
+								{
+									size_t idx = i * 4;
+									dataMat[idx] = simData->simOut.samplingTimes[i];
+									dataMat[idx + 1] = simData->simOut.samplingPoreVol[i];
+									dataMat[idx + 2] = simData->simOut.predictedBT[i]/simData->transParams.pulseConcentration;
+									dataMat[idx + 3] = simData->simOut.sorbedAtPoint[i];
+								}
+								std::string saveName = simDir + passdown + ".csv";
+								std::vector<std::string> header{ "time [h]", "pv [-]", "c [mg/L]", "s [mg/g]" };
+								nims_n::saveCSV(saveName, dataMat, ',', header);
 						});
+
+		for (int j = (int)simData->multiSimData.size() - 2; j >= 0; j--)
+		{
+			MultipleSimulation nextSim(simData->multiSimData[j], lastSim);
+			lastSim = nextSim;
+		}
+
+		lastSim("", simData->uiControls.scheduleStop);
 
 	}
 }

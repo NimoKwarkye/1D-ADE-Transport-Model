@@ -179,7 +179,6 @@ namespace ntrans
         ModelADE modelObject;
         UIEventsToggle uiEvents;
         ObservedDataInfo obsDataInfo;
-		ScenarioLoopInfo scenarioLoop;
         nims_n::FileExtensions fileExtensions;
         nims_n::TaskSystemLocal taskExecuter;
         nims_n::MarquardtInput marquardInput;

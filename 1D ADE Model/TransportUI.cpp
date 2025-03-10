@@ -1654,9 +1654,9 @@ void ntrans::TransportUI::SensitivityWindow()
                 int lastSensitivity = sensiControls.totalSensitivity - 1;
                 if (transportData->sensitivityAnalysis[lastSensitivity].sensitivityParams.size() > 0) {
                     if (!transportData->uiControls.isRunning) {
-                        transportData->columnParams.simDir = nims_n::FileExplorer::openFolder(L"Select Sim Directory");
+                        transportData->columnParams.simDir = nims_n::FileExplorer::openFolder(L"Select Simulation Directory");
                         if (!transportData->columnParams.simDir.empty() && transportData->uiControls.noObsData) {
-                            transportEvents.push_back(TransportSimEvents::SensitivityAnalysis);
+                            
                             uiEvents.showSensitivityWindow = false;
                         }
                         else if (!transportData->columnParams.simDir.empty())
@@ -2192,55 +2192,61 @@ void ntrans::TransportUI::multiScenarioLoopWindow()
         ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse))
     {
         ImGui::SetNextItemWidth(150.0f);
-        if (ImGui::BeginCombo("Select Parameter##loopsim", scenarioLoop.paramNames[scenarioLoop.selectedName].data()))
+        if (ImGui::BeginCombo("Select Parameter##loopsim", transportData->loopData.paramNames[transportData->loopData.selectedName].data()))
         {
-			for (int n = 0; n < scenarioLoop.paramNames.size(); n++)
-			{
-				const bool is_selected = (scenarioLoop.selectedName == n);
-				if (ImGui::Selectable(scenarioLoop.paramNames[n].data(), is_selected))
-					scenarioLoop.selectedName = n;
-				if (is_selected)
-					ImGui::SetItemDefaultFocus();
-			}
-            
+            for (int n = 0; n < transportData->loopData.paramNames.size(); n++)
+            {
+                const bool is_selected = (transportData->loopData.selectedName == n);
+                if (ImGui::Selectable(transportData->loopData.paramNames[n].data(), is_selected))
+                    transportData->loopData.selectedName = n;
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+
             ImGui::EndCombo();
         }
 
         ImGui::SameLine();
 
-		ImGui::SetNextItemWidth(150.0f);
-        if (ImGui::BeginCombo("Select Level##loopsim", ("level " + std::to_string(scenarioLoop.selectedLevel)).c_str()))
+        ImGui::SetNextItemWidth(150.0f);
+        if (ImGui::BeginCombo("Select Level##loopsim", ("level " + std::to_string(transportData->loopData.selectedLevel)).c_str()))
         {
-			for (int n{ 0 }; n < scenarioLoop.maxLevels; n++) {
-				const bool is_selected = (scenarioLoop.selectedLevel == n);
-				if (ImGui::Selectable(("level " + std::to_string(n)).c_str(), is_selected))
-					scenarioLoop.selectedLevel = n;
-				if (is_selected)
-					ImGui::SetItemDefaultFocus();
-			}
-			ImGui::EndCombo();
+            for (int n{ 0 }; n < transportData->loopData.maxLevels; n++) {
+                const bool is_selected = (transportData->loopData.selectedLevel == n);
+                if (ImGui::Selectable(("level " + std::to_string(n)).c_str(), is_selected))
+                    transportData->loopData.selectedLevel = n;
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
         }
-		ImGui::SameLine();
+        ImGui::SameLine();
 
-		if (ImGui::Button("Add Parameter##loopsim")) {
-			
-			scenarioLoop.addData(scenarioLoop.selectedLevel, 
-                scenarioLoop.paramNames[scenarioLoop.selectedName]);
-		}
+        if (ImGui::Button("Add Parameter##loopsim")) {
 
-		ImGui::SameLine();
-		if (ImGui::Button("Start Simulation##loopsim"))
-		{
-			
-		}
+            transportData->loopData.addData(transportData->loopData.selectedLevel,
+                transportData->loopData.paramNames[transportData->loopData.selectedName]);
+        }
 
-		ImGui::Separator();
-		for (auto& [level, loopData] : scenarioLoop.scenarioLoopData) {
-            if(loopData.size()>0)
+        ImGui::SameLine();
+        if (ImGui::Button("Start Simulation##loopsim"))
+        {
+            transportData->columnParams.simDir = nims_n::FileExplorer::openFolder(L"Select Simulation Directory");
+			if (transportData->loopData.addedParams.size() > 1 &&
+                !transportData->columnParams.simDir.empty())
+			    taskExecuter.async_([this]() {
+                                    runMultiScenarioLoop(transportData); });
+
+			uiEvents.showScenerioLoopWindow = false;
+        }
+
+        ImGui::Separator();
+        for (auto& [level, loopData] : transportData->loopData.scenarioLoopData) {
+            if (loopData.size() > 0)
             {
                 ImGui::SeparatorText(("level " + std::to_string(level) + "##speratortxt").c_str());
                 std::vector<std::string> rm_paramNames{};
-                for (int i{ 0 }; i < loopData.size(); i++) 
+                for (int i{ 0 }; i < loopData.size(); i++)
                 {
                     ImGui::SetNextItemWidth(150.0f);
                     ImGui::Text(loopData[i].paramName.c_str());
@@ -2252,17 +2258,17 @@ void ntrans::TransportUI::multiScenarioLoopWindow()
                             &loopData[i].rangeStart, 1e-2, 1.0);
                         ImGui::SameLine();
                         ImGui::SetNextItemWidth(150.0f);
-                        ImGui::InputDouble(("end##loopsimend" + std::to_string(i) + loopData[i].paramName).c_str(), 
+                        ImGui::InputDouble(("end##loopsimend" + std::to_string(i) + loopData[i].paramName).c_str(),
                             &loopData[i].rangeEnd, 1e-2, 1.0);
                         ImGui::SameLine();
                         ImGui::SetNextItemWidth(150.0f);
-                        ImGui::InputDouble(("step##loopsimstep" + std::to_string(i) + loopData[i].paramName).c_str(), 
+                        ImGui::InputDouble(("step##loopsimstep" + std::to_string(i) + loopData[i].paramName).c_str(),
                             &loopData[i].rangeStep, 1e-2, 1.0);
                     }
                     else
                     {
                         ImGui::SetNextItemWidth(450.0f);
-                        ImGui::InputText(("values##loopsimvalues" + std::to_string(i) + loopData[i].paramName).c_str(), 
+                        ImGui::InputText(("values##loopsimvalues" + std::to_string(i) + loopData[i].paramName).c_str(),
                             &loopData[i].textInput,
                             ImGuiInputTextFlags_CallbackCharFilter,
                             CharFilterCallback);
@@ -2271,7 +2277,7 @@ void ntrans::TransportUI::multiScenarioLoopWindow()
                     ImGui::SameLine();
 
                     ImGui::Checkbox(("use range##enterRange" + std::to_string(i) + loopData[i].paramName).c_str(),
-                                    &loopData[i].enterRange);
+                        &loopData[i].enterRange);
 
                     ImGui::SameLine();
                     if (ImGui::Button(("X##loopsim" + std::to_string(i) + loopData[i].paramName).c_str()))
@@ -2280,7 +2286,7 @@ void ntrans::TransportUI::multiScenarioLoopWindow()
                     }
                 }
                 for (auto& name : rm_paramNames) {
-                    scenarioLoop.removeData(level, name);
+                    transportData->loopData.removeData(level, name);
                 }
             }
 			

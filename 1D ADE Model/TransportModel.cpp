@@ -122,6 +122,38 @@ void ntrans::ModelADE::saveModelParameters(SimulationData* mdParams, std::string
 
 			out << "End FlowInterrupts\n";
 		}
+
+		if (!mdParams->loopData.addedParams.empty())
+		{
+			out << "Begin CustomSim\n";
+			out << "addedParams:\t";
+			for (auto pName : mdParams->loopData.addedParams)
+			{
+				out << pName << "\t";
+			}
+			out << "\n";
+			out << "maxLevels:\t" << mdParams->loopData.maxLevels << "\n";
+			out << "selectedLevel:\t" << mdParams->loopData.selectedLevel << "\n";
+			out << "selectedName:\t" << mdParams->loopData.selectedName << "\n";
+
+			for (auto [level, loopData] : mdParams->loopData.scenarioLoopData)
+			{
+				if (!loopData.empty())
+				{
+					out << "Level:\t" << level << "\n";
+					for (int i{ 0 }; i < loopData.size(); i++)
+					{
+						out << "name:\t" << loopData[i].paramName << "\n";
+						out << "textInput:\t" << loopData[i].textInput << "\n";
+						out << "range:\t" << loopData[i].rangeStart << "\t" << loopData[i].rangeEnd << "\t" << loopData[i].rangeStep << "\n";
+						out << "usedRange:\t" << loopData[i].enterRange << "\n";
+						out << "endLevelData\n";
+					}
+				}
+				
+			}
+			out << "End CustomSim\n";
+		}
 		out.close();
 	}
 	else {
@@ -138,6 +170,7 @@ void ntrans::ModelADE::loadModelParameters(std::string fileName, SimulationData*
 	std::vector<std::string>savedValues{};
 	std::vector<std::string>savedScenarios{};
 	std::vector<std::string>savedFLT{};
+	std::vector<std::string>savedCustomSim{};
 	in.open(fileName);
 	if (in.good()) {
 		//load space parameters
@@ -157,6 +190,13 @@ void ntrans::ModelADE::loadModelParameters(std::string fileName, SimulationData*
 				std::getline(in, line, '\n');
 				while (line != "End FlowInterrupts") {
 					savedFLT.push_back(line);
+					std::getline(in, line, '\n');
+				}
+			}
+			else if (line == "Begin CustomSim") {
+				std::getline(in, line, '\n');
+				while (line != "End CustomSim") {
+					savedCustomSim.push_back(line);
 					std::getline(in, line, '\n');
 				}
 			}
@@ -356,6 +396,92 @@ void ntrans::ModelADE::loadModelParameters(std::string fileName, SimulationData*
 		}
 
 
+		if (!savedCustomSim.empty())
+		{
+			loadParams->loopData.addedParams.clear();
+			for (auto& [level, loopData] : loadParams->loopData.scenarioLoopData)
+			{
+				loopData.clear();
+			}
+
+			std::string pName;
+			std::string textInput;
+			int level{ 0 };
+			double minVal{ 0.0 }, maxVal{ 0.0 }, stepVal{ 0.0 };
+			bool useRange{ false };
+
+			for (auto line : savedCustomSim)
+			{
+				std::stringstream scn(line);
+				std::string key;
+				std::getline(scn, key, '\t');
+
+				if(key == "addedParams:")
+				{
+					
+				}
+				else if (key == "maxLevels:")
+				{
+					std::getline(scn, key, '\t');
+					loadParams->loopData.maxLevels = std::stoi(key);
+				}
+				else if (key == "selectedLevel:")
+				{
+					std::getline(scn, key, '\t');
+					loadParams->loopData.selectedLevel = std::stoi(key);
+				}
+				else if (key == "selectedName:")
+				{
+					std::getline(scn, key, '\t');
+					loadParams->loopData.selectedName = std::stoi(key);
+				}
+				else if (key == "Level:")
+				{
+					std::getline(scn, key, '\t');
+					level = std::stoi(key);
+				}
+				else if(key == "endLevelData")
+				{
+					if (std::find(loadParams->loopData.paramNames.begin(), 
+						loadParams->loopData.paramNames.end(), pName) != 
+						loadParams->loopData.paramNames.end())
+					{
+						LoopData lData(level, pName);
+						lData.textInput = textInput;
+						lData.rangeStart = minVal;
+						lData.rangeEnd = maxVal;
+						lData.rangeStep = stepVal;
+						lData.enterRange = useRange;
+						loadParams->loopData.scenarioLoopData[level].push_back(lData);
+						loadParams->loopData.addedParams.push_back(pName);
+					}
+					
+				}
+				else if (key == "name:")
+				{
+					std::getline(scn, pName, '\t');
+				}
+				else if (key == "textInput:")
+				{
+					std::getline(scn, textInput, '\t');
+				}
+				else if (key == "range:")
+				{
+					std::getline(scn, key, '\t');
+					minVal = std::stod(key);
+					std::getline(scn, key, '\t');
+					maxVal = std::stod(key);
+					std::getline(scn, key, '\t');
+					stepVal = std::stod(key);
+				}
+				else if (key == "usedRange:")
+				{
+					std::getline(scn, key, '\t');
+					useRange = (bool)std::stoi(key);
+				}
+			}
+			
+		}
 
 	}
 	else {
@@ -1104,6 +1230,7 @@ double ntrans::ModelADE::solveImobilePhaseWithSorption(double mobile_c, int loc)
 		error = createJcReactiveImmobile(loc, mobile_c, iConc, false);
 
 		iConc -= error / delta;
+		iConc = iConc < 0.0 ? 0.0 : iConc;
 		error = createJcReactiveImmobile(loc, mobile_c, iConc, false);
 		iteration++;
 	}
