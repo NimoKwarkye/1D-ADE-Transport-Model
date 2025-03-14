@@ -17,7 +17,7 @@ void ntrans::ModelADE::operator()()
 	sout->executionLoc = "ADE Main";
 
 	// restore saved parameters
-	//simData->transParams = initialTranspValues;
+	setTransportParameters(tp, &initialTranspValues);
 
 
 	if (!simData->uiControls.isCalibration) {
@@ -558,8 +558,31 @@ void ntrans::ModelADE::init()
 
 	double pvMult = simData->transParams.flowVelocity / (simData->columnParams.domainLength * simData->transParams.waterContent);
 	simData->simOut.init(timeCount, simData->columnParams.timestep, pvMult);
-	initialTranspValues = simData->transParams;
+	setTransportParameters(&initialTranspValues, tp);
 	simData->uiControls.canPlot = true;
+}
+
+void ntrans::ModelADE::setTransportParameters(TransportParameters* lhs, TransportParameters* rhs)
+{
+	lhs->adsorptionCapacity = rhs->adsorptionCapacity;
+	lhs->bulkDensity = rhs->bulkDensity;
+	lhs->degradationRate_eqsb = rhs->degradationRate_eqsb;
+	lhs->degradationRate_kinsb = rhs->degradationRate_kinsb;
+	lhs->degradationRate_soln = rhs->degradationRate_soln;
+	lhs->dispersionLength = rhs->dispersionLength;
+	lhs->eq_kinPartitionCoefficient = rhs->eq_kinPartitionCoefficient;
+	lhs->flowRate = rhs->flowRate;
+	lhs->hysteresisCoefficient = rhs->hysteresisCoefficient;
+	lhs->isothermConstant = rhs->isothermConstant;
+	lhs->maxAdsorptionVal = rhs->maxAdsorptionVal;
+	lhs->molecularDiffusion = rhs->molecularDiffusion;
+	lhs->mo_imExchangeRate = rhs->mo_imExchangeRate;
+	lhs->mo_imPartitionCoefficient = rhs->mo_imPartitionCoefficient;
+	lhs->pulseConcentration = rhs->pulseConcentration;
+	lhs->reactionRateCoefficient = rhs->reactionRateCoefficient;
+	lhs->waterContent = rhs->waterContent;
+	lhs->flowVelocity = rhs->flowVelocity;
+
 }
 
 void ntrans::ModelADE::solveTriDiag(std::vector<ConservativeNodes>* nodes)

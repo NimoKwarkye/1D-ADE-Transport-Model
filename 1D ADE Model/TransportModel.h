@@ -398,6 +398,7 @@ namespace ntrans
 
 	private:
 		void init();
+		void setTransportParameters(TransportParameters* lhs, TransportParameters* rhs);
 		void solveTriDiag(std::vector<ConservativeNodes>* nodes);
 		void solveTriDiag(std::vector<ReactiveNodes>* nodes);
 		void subtractNodeValue(std::vector<ConservativeNodes>* lhsNodes);
@@ -500,9 +501,9 @@ namespace ntrans
 					c_name = c_name.substr(0, c_name.find_first_of('.')) + "_" + 
 						c_name.substr(c_name.find_first_of('.') + 1, c_name.size());
 
-					passdown += fileName + variableNames[i] + "_" + c_name + "_";
+					passdown += variableNames[i] + "_" + c_name + "_";
 				}
-				innerLoop(passdown, stopSims);
+				innerLoop(fileName + passdown, stopSims);
 				varCount++;
 			}
 
@@ -635,17 +636,17 @@ namespace ntrans
 			{
 				if (loopData[j].paramName == "concentration")
 				{
-					set_data(&simData->transParams.pulseConcentration, "concentration", loopData[j], oneLevelData);
+					set_data(&simData->transParams.pulseConcentration, "c", loopData[j], oneLevelData);
 
 				}
 				else if(loopData[j].paramName == "peclet")
 				{
-					set_data(&simData->simOut.peclet, "peclet", loopData[j], oneLevelData);
+					set_data(&simData->simOut.peclet, "Pe", loopData[j], oneLevelData);
 					simData->multiSimDependencies.push_back(set_disp_from_pe);
 				}
 				else if (loopData[j].paramName == "flow_rate")
 				{
-					set_data(&simData->transParams.flowRate, "flow_rate", loopData[j], oneLevelData);
+					set_data(&simData->transParams.flowRate, "fr", loopData[j], oneLevelData);
 				}
 				else if (loopData[j].paramName == "smax_nf")
 				{
@@ -654,28 +655,28 @@ namespace ntrans
 
 				else if (loopData[j].paramName == "isotherm_K")
 				{
-					set_data(&simData->transParams.isothermConstant, "isotherm_K", loopData[j], oneLevelData);
+					set_data(&simData->transParams.isothermConstant, "K", loopData[j], oneLevelData);
 				}
 				else if (loopData[j].paramName == "damkohler")
 				{
-					set_data(&simData->simOut.damkohler_prd, "damkohler", loopData[j], oneLevelData);
+					set_data(&simData->simOut.damkohler_prd, "Da", loopData[j], oneLevelData);
 					simData->multiSimDependencies.push_back(set_rt_from_da);
 				}
 				else if (loopData[j].paramName == "hysteresis_coef")
 				{
-					set_data(&simData->transParams.hysteresisCoefficient, "hysteresis_coef", loopData[j], oneLevelData);
+					set_data(&simData->transParams.hysteresisCoefficient, "h", loopData[j], oneLevelData);
 				}
 				else if (loopData[j].paramName == "sol_deg_rate")
 				{
-					set_data(&simData->transParams.degradationRate_soln, "sol_deg_rate", loopData[j], oneLevelData);
+					set_data(&simData->transParams.degradationRate_soln, "c_deg", loopData[j], oneLevelData);
 				}
 				else if (loopData[j].paramName == "eq_sorbed_deg_rate")
 				{
-					set_data(&simData->transParams.degradationRate_eqsb, "eq_sorbed_deg_rate", loopData[j], oneLevelData);
+					set_data(&simData->transParams.degradationRate_eqsb, "s_deg", loopData[j], oneLevelData);
 				}
 				else if (loopData[j].paramName == "kin_sorbed_deg_rate")
 				{
-					set_data(&simData->transParams.degradationRate_kinsb, "kin_sorbed_deg_rate", loopData[j], oneLevelData);
+					set_data(&simData->transParams.degradationRate_kinsb, "s_deg_kin", loopData[j], oneLevelData);
 				}
 				
 				simData->multiSimData.push_back(oneLevelData);
@@ -685,6 +686,10 @@ namespace ntrans
 
 	inline void runMultiScenarioLoop(SimulationData* simData)
 	{
+		simData->uiControls.isRunning = true;
+		simData->uiControls.scheduleStop = false;
+		simData->uiControls.isCalibration = true;
+		simData->calibrationType = CalibrationType::SensitivityAnalysis;
 		prepareLoopData(simData->loopData, simData);
 		size_t lastIndex = simData->multiSimData.size() - 1;
 		std::string simDir = simData->columnParams.simDir + "/multiple_simulation/";
@@ -733,6 +738,23 @@ namespace ntrans
 		}
 
 		lastSim("", simData->uiControls.scheduleStop);
+
+		for (auto& dep : simData->multiSimDependencies)
+			dep(simData);
+		for (int scn{ 0 }; scn < simData->scenarios.size(); scn++)
+		{
+			for (int dt{ 0 }; dt < simData->scenarios[scn].modifiedParams.size(); dt++)
+			{
+				if (simData->scenarios[scn].modifiedParams[dt] == INPUTMASS &&
+					simData->scenarios[scn].paramValues[dt] > 1e-10)
+				{
+					simData->scenarios[scn].paramValues[dt] = simData->transParams.pulseConcentration;
+				}
+			}
+		}
+
+		simData->uiControls.isRunning = false;
+		simData->uiControls.scheduleStop = false;
 
 	}
 }

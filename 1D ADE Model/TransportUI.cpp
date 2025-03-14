@@ -1437,7 +1437,9 @@ void ntrans::TransportUI::ScenarioWindow()
 {
     if (ImGui::Begin("Define Scenarios", &uiEvents.showScenarioWindow, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse)) {
         ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_Reorderable | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
-        if (ImGui::BeginTable("##scenarioTable", paramsNames.size(), flags)) {
+        ImVec2 windowPos = ImGui::GetWindowPos();
+        ImVec2 windowSize = ImGui::GetWindowSize();
+        if (ImGui::BeginTable("##scenarioTable", paramsNames.size(), flags, ImVec2(-1, windowSize.y*0.78))) {
 
             for (int i{ 0 }; i < paramsNames.size(); i++) {
                 if (i > 0) {
@@ -1465,6 +1467,10 @@ void ntrans::TransportUI::ScenarioWindow()
 
             ImGui::EndTable();
         }
+
+        ImGui::SetNextWindowPos(ImVec2(windowPos.x + (0.5f * windowSize.x)/1.2f, windowPos.y + 0.99 * windowSize.y - (windowSize.y * 0.1f)), ImGuiCond_Always);
+        ImGui::BeginChild("save_load_window", ImVec2(windowSize.x - 0.5f * windowSize.x, windowSize.y * 0.1f));
+
         if (ImGui::Button("New row")) {
             std::vector<std::string> oneRow{};
             for (int j{ 0 }; j < paramsNames.size() - 1; j++) {
@@ -1517,6 +1523,7 @@ void ntrans::TransportUI::ScenarioWindow()
             }
             uiEvents.showScenarioWindow = false;
         }
+		ImGui::EndChild();
 
         ImGui::End();
     }
@@ -2231,13 +2238,21 @@ void ntrans::TransportUI::multiScenarioLoopWindow()
         ImGui::SameLine();
         if (ImGui::Button("Start Simulation##loopsim"))
         {
-            transportData->columnParams.simDir = nims_n::FileExplorer::openFolder(L"Select Simulation Directory");
-			if (transportData->loopData.addedParams.size() > 1 &&
-                !transportData->columnParams.simDir.empty())
-			    taskExecuter.async_([this]() {
-                                    runMultiScenarioLoop(transportData); });
+			if (!transportData->uiControls.isRunning)
+            {
+                transportData->columnParams.simDir = nims_n::FileExplorer::openFolder(L"Select Simulation Directory");
+                if (transportData->loopData.addedParams.size() > 1 &&
+                    !transportData->columnParams.simDir.empty())
+                {
+					transportData->uiControls.stopCustomLoop = false;
+                    taskExecuter.async_([this]() {
+                        runMultiScenarioLoop(transportData); });
+                }
+                    
 
-			uiEvents.showScenerioLoopWindow = false;
+                uiEvents.showScenerioLoopWindow = false;
+            }
+            
         }
 
         ImGui::Separator();
