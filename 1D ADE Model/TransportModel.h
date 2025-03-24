@@ -12,6 +12,7 @@
 #include <sstream>
 #include <functional>
 #include <map>
+#include <exception>
 
 #include "MatArray.h"
 #include "ReadCSV.h"
@@ -272,7 +273,7 @@ namespace ntrans
 		std::vector<double>sorbedAtPoint{};
 		std::vector<double>concAtPoint{};
 
-		inline void init(int timeCount, double delta_t, double poreVolMult)
+		inline void init(int timeCount, double simTime, double delta_t, double poreVolMult, std::vector<FlowInterrupts>& interruptData)
 		{
 			totalDegradedMass = 0.0;
 			totalInflowMass = 0.0;
@@ -283,6 +284,9 @@ namespace ntrans
 			massBalanceValue = 0.0;
 			currentSampleStep = 0;
 
+			double it_time{ 0.0 };
+			size_t interruptionCount = interruptData.size();
+			size_t curInterrupt{ 0 };
 
 			if(obsSamplingTimes.size() > 0)
 			{
@@ -297,11 +301,31 @@ namespace ntrans
 				else
 				{
 					obsSamplingPoreVol.resize(obsSamplingTimes.size());
-					double it{ 0.0 };
-					for (int  i = 0; i < obsSamplingTimes.size(); i++)
+					obsSamplingPoreVol[0] = 0.0;
+					samplingPoreVol[0] = 0.0;
+					
+
+					for (int  i = 1; i < obsSamplingTimes.size(); i++)
 					{
-						obsSamplingPoreVol[i] = obsSamplingTimes[i] * poreVolMult;
-						samplingPoreVol[i] = obsSamplingTimes[i] * poreVolMult;
+						if (interruptionCount > 0)
+						{
+							if (curInterrupt < interruptionCount)
+							{
+								if (obsSamplingTimes[i] > interruptData[curInterrupt].startTime)
+								{
+									it_time += interruptData[curInterrupt].duration;
+									curInterrupt++;
+								}
+							}
+							obsSamplingPoreVol[i] = (obsSamplingTimes[i] - it_time) * poreVolMult;
+							samplingPoreVol[i] = obsSamplingPoreVol[i];
+
+						}
+						else
+						{
+							obsSamplingPoreVol[i] = obsSamplingTimes[i] * poreVolMult;
+							samplingPoreVol[i] = obsSamplingTimes[i] * poreVolMult;
+						}
 					}
 
 				}
@@ -310,12 +334,35 @@ namespace ntrans
 			{
 				samplingTimes.resize(timeCount);
 				samplingPoreVol.resize(timeCount);
-				double it{ 0.0 };
-				for (int i = 0; i < timeCount; i++)
+				samplingPoreVol[0] = 0.0;
+				samplingTimes[0] = 0.0;
+				int ct = { 1 };
+				for (double it = delta_t; it < simTime; it+=delta_t)
 				{
-					samplingTimes[i] = it;
-					samplingPoreVol[i] = it * poreVolMult;
-					it += delta_t;
+					if (ct >= timeCount)
+						throw std::runtime_error("Sampling time index out of bounds");
+
+					if (interruptionCount > 0)
+					{
+						if (curInterrupt < interruptionCount)
+						{
+							if (it > interruptData[curInterrupt].startTime)
+							{
+								it_time += interruptData[curInterrupt].duration;
+								it += interruptData[curInterrupt].duration;
+								curInterrupt++;
+							}
+						}
+
+						samplingTimes[ct] = it;
+						samplingPoreVol[ct] = (it - it_time) * poreVolMult;
+					}
+					else
+					{
+						samplingTimes[ct] = it;
+						samplingPoreVol[ct] = it * poreVolMult;
+					}
+					ct++;
 				}
 			}
 			predictedBT.resize(samplingTimes.size());
@@ -440,6 +487,7 @@ namespace ntrans
 		DomainParameters* dp{ nullptr };
 		SimulationOutPut* sout{ nullptr };
 		TransportParameters initialTranspValues;
+		std::vector<FlowInterrupts> intDataCopy;
 
 		int nodeCount{ 1 };
 		int timeCount{ 1 };
@@ -449,6 +497,7 @@ namespace ntrans
 		bool ignoreImmobileRegions{ true };
 		bool ignoreReactions{ true };
 		double minConc{ 1e-315 };
+		double elaspedIntTime{ 0.0 };
 
 		std::vector<double> triDiagHelper{};
 	};

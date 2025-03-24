@@ -494,21 +494,46 @@ void ntrans::ModelADE::init()
 	simData->uiControls.canPlot = false;
 	while (simData->uiControls.isPlotting){}
 	
-
+	intDataCopy.clear();
 	if(simData->uiControls.usePoreVols)
 	{
 		simData->transParams.flowVelocity = simData->columnParams.domainLength *
 											simData->transParams.waterContent *
 											simData->transParams.flowRate / 24.0;
+		double eInttime{ 0.0 };
+		for(size_t i{0}; i < simData->flowInterrupts.size(); i++)
+		{
+			FlowInterrupts oneInt;
+			oneInt.duration = simData->flowInterrupts[i].duration * 
+								simData->transParams.waterContent *
+								simData->columnParams.domainLength /
+								simData->transParams.flowVelocity;
+			oneInt.startTime = (dp->domainLength * tp->waterContent * simData->flowInterrupts[i].startTime /
+								simData->transParams.flowVelocity) + eInttime;
+			eInttime += oneInt.duration;
+			intDataCopy.push_back(oneInt);
+		}
 	}
 	else
 	{
 		simData->transParams.flowVelocity = simData->transParams.flowRate /
 											simData->columnParams.crossSectionArea;
+
+		for (size_t i{ 0 }; i < simData->flowInterrupts.size(); i++)
+		{
+			FlowInterrupts oneInt;
+			oneInt.duration = simData->flowInterrupts[i].duration;
+			oneInt.startTime = simData->flowInterrupts[i].startTime;
+			intDataCopy.push_back(oneInt);
+		}
 	}
-	
+	elaspedIntTime = 0.0;
 	tp->maxInputConc = max(tp->pulseConcentration, tp->maxInputConc);
-	timeCount = (int)std::round(simData->columnParams.totalTransportTime / simData->columnParams.timestep) + 1;
+	double totalInterruptionTime{ 0.0 };
+	for (int i = 0; i < intDataCopy.size(); i++)
+		totalInterruptionTime += intDataCopy[i].duration;
+
+	timeCount = (int)std::round((simData->columnParams.totalTransportTime - totalInterruptionTime) / simData->columnParams.timestep) + 1;
 	nodeCount = (int)std::round(simData->columnParams.domainLength / simData->columnParams.domainSteps);
 	currentScene = 0;
 	triDiagHelper.clear();
@@ -557,7 +582,7 @@ void ntrans::ModelADE::init()
 	}
 
 	double pvMult = simData->transParams.flowVelocity / (simData->columnParams.domainLength * simData->transParams.waterContent);
-	simData->simOut.init(timeCount, simData->columnParams.timestep, pvMult);
+	simData->simOut.init(timeCount, simData->columnParams.totalTransportTime, simData->columnParams.timestep, pvMult, intDataCopy);
 	setTransportParameters(&initialTranspValues, tp);
 	simData->uiControls.canPlot = true;
 }
@@ -749,7 +774,7 @@ void ntrans::ModelADE::evaluateScenarios(double currentSimTime)
 
 	double scenarioTime = simData->scenarios[currentScene].sceneTime;
 	if (simData->uiControls.usePoreVols) {
-		scenarioTime = dp->domainLength * tp->waterContent * scenarioTime / initialTranspValues.flowVelocity;
+		scenarioTime = (dp->domainLength * tp->waterContent * scenarioTime / initialTranspValues.flowVelocity) + elaspedIntTime;
 	}
 
 	if (currentSimTime >= scenarioTime && currentScene < simData->scenarios.size()) {
@@ -870,16 +895,18 @@ void ntrans::ModelADE::runModel()
 			sout->exchPoreVol = (velocity * t) / dp->domainLength;
 
 
-			if (simData->flowInterrupts.size() > 0 && currentInterrupt < simData->flowInterrupts.size() &&
-				t >= simData->flowInterrupts[currentInterrupt].startTime)
+			if (intDataCopy.size() > 0 && currentInterrupt < intDataCopy.size() &&
+				t >= intDataCopy[currentInterrupt].startTime)
 			{
 				double fv = tp->flowVelocity;
 				tp->flowVelocity = 0.0;
 				double interruptTime{ 0.0 };
-				while (interruptTime < simData->flowInterrupts[currentInterrupt].duration) {
+				while (interruptTime < intDataCopy[currentInterrupt].duration) {
 					conservativeLoop();
 					interruptTime += dp->timestep;
+					t += dp->timestep;
 				}
+				elaspedIntTime += intDataCopy[currentInterrupt].duration;
 				tp->flowVelocity = fv;
 				currentInterrupt++;
 			}
@@ -931,17 +958,19 @@ void ntrans::ModelADE::runModel()
 			sout->exchPoreVol = (velocity * t) / dp->domainLength;
 
 
-			if (simData->flowInterrupts.size() > 0 && currentInterrupt < simData->flowInterrupts.size() &&
-				t >= simData->flowInterrupts[currentInterrupt].startTime)
+			if (intDataCopy.size() > 0 && currentInterrupt < intDataCopy.size() &&
+				t >= intDataCopy[currentInterrupt].startTime)
 			{
 				double fv = tp->flowVelocity;
 				tp->flowVelocity = 0.0;
 				double interruptTime{ 0.0 };
-				while (interruptTime < simData->flowInterrupts[currentInterrupt].duration) {
+				while (interruptTime < intDataCopy[currentInterrupt].duration) {
 					reactiveLoop();
 					interruptTime += dp->timestep;
+					t += dp->timestep;
 				}
 				tp->flowVelocity = fv;
+				elaspedIntTime += intDataCopy[currentInterrupt].duration;
 				currentInterrupt++;
 			}
 			else

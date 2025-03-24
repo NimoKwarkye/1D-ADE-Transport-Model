@@ -440,7 +440,10 @@ void ntrans::TransportUI::loadModelParameters()
 
             for (int i{ 0 }; i < transportData->flowInterrupts.size(); i++) {
                 std::vector<std::string> oneInt;
-                if (transportData->uiControls.usePoreVols) {
+                oneInt.push_back(std::to_string(transportData->flowInterrupts[i].startTime));
+                oneInt.push_back(std::to_string(transportData->flowInterrupts[i].duration));
+
+                /*if (transportData->uiControls.usePoreVols) {
                     double vc = transportData->columnParams.domainLength * transportData->transParams.waterContent * transportData->transParams.flowRate / 24.0;
                     double stTime = vc * transportData->flowInterrupts[i].startTime / (transportData->columnParams.domainLength * transportData->transParams.waterContent);
                     double drTime = vc * transportData->flowInterrupts[i].duration / (transportData->columnParams.domainLength * transportData->transParams.waterContent);
@@ -451,7 +454,7 @@ void ntrans::TransportUI::loadModelParameters()
                 else {
                     oneInt.push_back(std::to_string(transportData->flowInterrupts[i].startTime));
                     oneInt.push_back(std::to_string(transportData->flowInterrupts[i].duration));
-                }
+                }*/
 
 
                 interruptInputData.push_back(oneInt);
@@ -2155,10 +2158,13 @@ void ntrans::TransportUI::FlowInterruptsWindow()
             for (int i{ 0 }; i < interruptInputData.size(); i++) {
                 FlowInterrupts oneInterrupt;
 
-                if (!interruptInputData[i][0].empty() && !interruptInputData[i][0].empty()) {
+                if (!interruptInputData[i][0].empty() && !interruptInputData[i][1].empty()) {
                     try
                     {
-                        if (transportData->uiControls.usePoreVols) {
+                        oneInterrupt.startTime = std::stod(interruptInputData[i][0]);
+                        oneInterrupt.duration = std::stod(interruptInputData[i][1]);
+
+                        /*if (transportData->uiControls.usePoreVols) {
                             double value = std::stod(interruptInputData[i][0]);
                             double cgui_velocity = transportData->columnParams.domainLength * 
                                 transportData->transParams.waterContent * 
@@ -2173,7 +2179,7 @@ void ntrans::TransportUI::FlowInterruptsWindow()
                         else {
                             oneInterrupt.startTime = std::stod(interruptInputData[i][0]);
                             oneInterrupt.duration = std::stod(interruptInputData[i][1]);
-                        }
+                        }*/
 
                         transportData->flowInterrupts.push_back(oneInterrupt);
                     }
