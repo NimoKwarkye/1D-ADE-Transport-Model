@@ -858,24 +858,24 @@ void ntrans::ModelADE::runModel()
 
 	if(ignoreReactions)
 	{
-		for (double t{ dp->timestep }; t <= dp->totalTransportTime + dp->timestep; t += dp->timestep)
+		for (double simstep{ dp->timestep }; simstep <= dp->totalTransportTime + dp->timestep; simstep += dp->timestep)
 		{
 			if (simData->uiControls.scheduleStop)
 				break;
 			sout->executionLoc = "Main Timestep";
-			sout->curSimStep = t;
+			sout->curSimStep = simstep;
 
 			if (simData->scenarios.size() > 0) {
-				evaluateScenarios(t);
+				evaluateScenarios(simstep);
 			}
+			
 
 			if (sout->samplingTimes.size() > 0) {
 				if (sampleStep < sout->samplingTimes.size()) {
 					sout->currentSampleStep = sampleStep;
-					if (sout->samplingTimes.at(sampleStep) - (t - dp->timestep) < dp->timestep / 1000.0) {
-						sout->predictedBT[sampleStep] = effVessel(simData->conserveNodes[nodeCount - (size_t)1].prevConcValue, prevEffluent);
+					if (sout->samplingTimes.at(sampleStep) - (simstep - dp->timestep) <= dp->timestep/1000.0) {
+						sout->predictedBT[sampleStep] = prevEffluent;
 
-						prevEffluent = sout->predictedBT[sampleStep];
 						sampleStep++;
 					}
 				}
@@ -892,11 +892,11 @@ void ntrans::ModelADE::runModel()
 			sout->peclet = (tp->molecularDiffusion + velocity * tp->dispersionLength) > 0.0 ? (dp->domainLength * velocity) /
 				(tp->molecularDiffusion + velocity * tp->dispersionLength) : 0.0;
 
-			sout->exchPoreVol = (velocity * t) / dp->domainLength;
+			sout->exchPoreVol = (velocity * simstep) / dp->domainLength;
 
 
 			if (intDataCopy.size() > 0 && currentInterrupt < intDataCopy.size() &&
-				t >= intDataCopy[currentInterrupt].startTime)
+				simstep >= intDataCopy[currentInterrupt].startTime)
 			{
 				double fv = tp->flowVelocity;
 				tp->flowVelocity = 0.0;
@@ -904,7 +904,7 @@ void ntrans::ModelADE::runModel()
 				while (interruptTime < intDataCopy[currentInterrupt].duration) {
 					conservativeLoop();
 					interruptTime += dp->timestep;
-					t += dp->timestep;
+					simstep += dp->timestep;
 				}
 				elaspedIntTime += intDataCopy[currentInterrupt].duration;
 				tp->flowVelocity = fv;
@@ -916,6 +916,7 @@ void ntrans::ModelADE::runModel()
 
 			}
 			sout->executionLoc = "Main Timestep";
+			prevEffluent = effVessel(simData->conserveNodes[nodeCount - (size_t)1].prevConcValue, prevEffluent);
 		}
 	}
 	else
@@ -935,10 +936,9 @@ void ntrans::ModelADE::runModel()
 				if (sampleStep < sout->samplingTimes.size()) {
 					sout->currentSampleStep = sampleStep;
 					if (sout->samplingTimes.at(sampleStep) - (t - dp->timestep) < dp->timestep / 1000.0) {
-						sout->predictedBT[sampleStep] = effVessel(simData->reactNodes[nodeCount - (size_t)1].prevConcValue, prevEffluent);
+						sout->predictedBT[sampleStep] = prevEffluent;
 						sout->concAtPoint[sampleStep] = simData->reactNodes[nodeCount - (size_t)1].prevConcValue;
 						sout->sorbedAtPoint[sampleStep] = simData->reactNodes[nodeCount - (size_t)1].totalSorbed;
-						prevEffluent = sout->predictedBT[sampleStep];
 						sampleStep++;
 					}
 				}
@@ -979,6 +979,7 @@ void ntrans::ModelADE::runModel()
 
 			}
 			sout->executionLoc = "Main Timestep";
+			prevEffluent = effVessel(simData->reactNodes[nodeCount - (size_t)1].prevConcValue, prevEffluent);
 		}
 	}
 }
