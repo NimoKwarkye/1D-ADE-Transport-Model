@@ -801,7 +801,7 @@ void ntrans::TransportUI::ConfigWindow()
 
             {
                 ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
-                ImGui::BeginChild("ChildR", ImVec2(0, 490), false);
+                ImGui::BeginChild("ChildR", ImVec2(0, 390), false);
                 if (ImGui::Button("reset obs data") && !transportData->uiControls.isRunning) {
                     transportData->simOut.observedBT.clear();
                     transportData->simOut.obsSamplingTimes.clear();
@@ -865,7 +865,7 @@ void ntrans::TransportUI::ConfigWindow()
 
             ImGui::TreePop();
 
-            ImGui::NewLine();
+            //ImGui::NewLine();
         }
 
         if (ImGui::TreeNode("Transport")) {
@@ -931,7 +931,7 @@ void ntrans::TransportUI::ConfigWindow()
 
 
             ImGui::TreePop();
-            ImGui::NewLine();
+            //ImGui::NewLine();
         }
 
         if (ImGui::TreeNode("Reactions")) {
@@ -940,7 +940,6 @@ void ntrans::TransportUI::ConfigWindow()
             ImGui::RadioButton("No Adsorption", &transportData->columnParams.isothermType, 0);
             ImGui::SameLine();
             ImGui::RadioButton("Linear Adsorption", &transportData->columnParams.isothermType, 3);
-            ImGui::SameLine();
             ImGui::RadioButton("Langmuir Adsorption", &transportData->columnParams.isothermType, 1);
             ImGui::SameLine();
             ImGui::RadioButton("Freundlich Adsorption", &transportData->columnParams.isothermType, 2);

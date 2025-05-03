@@ -402,35 +402,6 @@ namespace nims_n {
             return MatArray<T>(std::move(ret_data), nrows, ntubes);
         }
 
-        MatArray<T> columnSliceMat(size_t col)
-        {
-            std::vector<T> ret_data(nrows * ntubes);
-
-            for (size_t tb{ 0 }; tb < ntubes; tb++) {
-                for (size_t rw{ 0 }; rw < nrows; rw++) {
-                    size_t idx = tb * nrows * ncols + rw * ncols + col;
-                    size_t idx_r = rw * ntubes + tb;
-                    ret_data[idx_r] = data[idx];
-                }
-
-            }
-            return MatArray<T>(std::move(ret_data), nrows, ntubes);
-        }
-
-        MatArray<T> columnSliceMat_t(size_t col)
-        {
-            std::vector<T> ret_data(nrows * ntubes);
-
-            for (size_t tb{ 0 }; tb < ntubes; tb++) {
-                for (size_t rw{ 0 }; rw < nrows; rw++) {
-                    size_t idx = tb * nrows * ncols + rw * ncols + col;
-                    size_t idx_r = tb * nrows + rw;
-                    ret_data[idx_r] = data[idx];
-                }
-
-            }
-            return MatArray<T>(std::move(ret_data), ntubes, nrows);
-        }
 
         MatArray<T> columnSliceMat_t(size_t col) const
         {
@@ -462,20 +433,7 @@ namespace nims_n {
             return MatArray<T>(std::move(ret_data), ntubes, ncols);
         }
 
-        MatArray<T> rowSliceMat(size_t row)
-        {
-            std::vector<T> ret_data(ncols * ntubes);
-
-            for (size_t tb{ 0 }; tb < ntubes; tb++) {
-                for (size_t cl{ 0 }; cl < ncols; cl++) {
-                    size_t idx = tb * nrows * ncols + row * ncols + cl;
-                    size_t idx_r = tb * ncols + cl;
-                    ret_data[idx_r] = data[idx];
-                }
-
-            }
-            return MatArray<T>(std::move(ret_data), ntubes, ncols);
-        }
+        
 
         MatArray<T> rowSliceMat_t(size_t row) const
         {
@@ -492,20 +450,6 @@ namespace nims_n {
             return MatArray<T>(std::move(ret_data), ncols, ntubes);
         }
 
-        MatArray<T> rowSliceMat_t(size_t row)
-        {
-            std::vector<T> ret_data(ncols * ntubes);
-
-            for (size_t tb{ 0 }; tb < ntubes; tb++) {
-                for (size_t cl{ 0 }; cl < ncols; cl++) {
-                    size_t idx = tb * nrows * ncols + row * ncols + cl;
-                    size_t idx_r = cl * ntubes + tb;
-                    ret_data[idx_r] = data[idx];
-                }
-
-            }
-            return MatArray<T>(std::move(ret_data), ncols, ntubes);
-        }
 
         MatArray<T> tubeSliceMat(size_t tube) const
         {
@@ -522,20 +466,6 @@ namespace nims_n {
             return MatArray<T>(std::move(ret_data), nrows, ncols);
         }
 
-        MatArray<T> tubeSliceMat(size_t tube)
-        {
-            std::vector<T> ret_data(ncols * nrows);
-
-            for (size_t rw{ 0 }; rw < nrows; rw++) {
-                for (size_t cl{ 0 }; cl < ncols; cl++) {
-                    size_t idx = tube * nrows * ncols + rw * ncols + cl;
-                    size_t idx_r = rw * ncols + cl;
-                    ret_data[idx_r] = data[idx];
-                }
-
-            }
-            return MatArray<T>(std::move(ret_data), nrows, ncols);
-        }
 
         MatArray<T> tubeSliceMat_t(size_t tube) const
         {
@@ -552,20 +482,7 @@ namespace nims_n {
             return MatArray<T>(std::move(ret_data), ncols, nrows);
         }
 
-        MatArray<T> tubeSliceMat_t(size_t tube) 
-        {
-            std::vector<T> ret_data(ncols * nrows);
-
-            for (size_t rw{ 0 }; rw < nrows; rw++) {
-                for (size_t cl{ 0 }; cl < ncols; cl++) {
-                    size_t idx = tube * nrows * ncols + rw * ncols + cl;
-                    size_t idx_r = cl * ncols + rw;
-                    ret_data[idx_r] = data[idx];
-                }
-
-            }
-            return MatArray<T>(std::move(ret_data), ncols, nrows);
-        }
+        
 
         MatArray<T>getSlice(std::vector<size_t> idxs, std::int64_t axis=0) const
         {
@@ -623,61 +540,6 @@ namespace nims_n {
             }
         }
 
-        MatArray<T>getSlice(std::vector<size_t> idxs, std::int64_t axis = 0)
-        {
-            if (axis == 0)
-            {
-                size_t rws = idxs.size();
-                std::vector<T> ret_data(ncols * rws * ntubes);
-
-                for (size_t tb{ 0 }; tb < ntubes; tb++) {
-                    for (size_t rw{ 0 }; rw < rws; rw++) {
-                        for (size_t cl{ 0 }; cl < ncols; cl++) {
-                            size_t idx = tb * nrows * ncols + idxs[rw] * ncols + cl;
-                            size_t idx_r = tb * rws * ncols + rw * ncols + cl;
-                            ret_data[idx_r] = data[idx];
-                        }
-                    }
-
-                }
-                return MatArray<T>(std::move(ret_data), rws, ncols, ntubes);
-
-            }
-            else if (axis == 1)
-            {
-                size_t cls = idxs.size();
-                std::vector<T> ret_data(nrows * cls * ntubes);
-
-                for (size_t tb{ 0 }; tb < ntubes; tb++) {
-                    for (size_t rw{ 0 }; rw < nrows; rw++) {
-                        for (size_t cl{ 0 }; cl < cls; cl++) {
-                            size_t idx = tb * nrows * ncols + rw * ncols + idxs[cl];
-                            size_t idx_r = tb * nrows * cls + rw * cls + cl;
-                            ret_data[idx_r] = data[idx];
-                        }
-                    }
-
-                }
-                return MatArray<T>(std::move(ret_data), nrows, cls, ntubes);
-            }
-            else
-            {
-                size_t tbs = idxs.size();
-                std::vector<T> ret_data(nrows * tbs * ncols);
-
-                for (size_t tb{ 0 }; tb < tbs; tb++) {
-                    for (size_t rw{ 0 }; rw < nrows; rw++) {
-                        for (size_t cl{ 0 }; cl < ncols; cl++) {
-                            size_t idx = idxs[tb] * nrows * ncols + rw * ncols + cl;
-                            size_t idx_r = tb * nrows * ncols + rw * ncols + cl;
-                            ret_data[idx_r] = data[idx];
-                        }
-                    }
-
-                }
-                return MatArray<T>(std::move(ret_data), nrows, ncols, tbs);
-            }
-        }
 
         auto rowSlice(size_t row)  const {
             if (row >= nrows)
@@ -695,58 +557,6 @@ namespace nims_n {
             return MatrixView<decltype(iter)>(iter, ntubes, ncols, vs);
         }
 
-        auto columnSlice(size_t col)
-        {
-            if (col >= ncols)
-                throw std::runtime_error("index out of range. max columns = " +
-                    std::to_string(ncols) + " but " + std::to_string(col) + " was passed");
-
-            stride vs;
-            vs.jumpCount = ntubes * nrows;
-            vs.oneBlockSize = 1;
-            vs.jumpSize = ncols;
-            vs.sbJump_c = ntubes;
-            vs.sbJump_s = nrows * ncols;
-            vs.sbJump_to = ncols;
-            auto iter = begin();
-            iter += col;
-
-            return MatrixView<decltype(iter)>(iter, nrows, ntubes, vs);
-        }
-
-        auto tubeSlice(size_t tube)
-        {
-            if (tube >= ntubes)
-                throw std::runtime_error("index out of range. max tubes = " +
-                    std::to_string(ntubes) + " but " + std::to_string(tube) + " was passed");
-
-            stride vs(0, 1, ncols * nrows);
-            vs.sbJump_c = nrows;
-            vs.sbJump_s = ncols;
-            size_t jump = nrows * ncols * tube;
-            auto iter = begin();
-            iter += jump;
-
-            return MatrixView<decltype(iter)>(iter, nrows, ncols, vs);
-        }
-
-        
-        auto rowSlice(size_t row) 
-        {
-            if (row >= nrows)
-                throw std::runtime_error("index out of range. max rows = " +
-                    std::to_string(nrows) + " but " + std::to_string(row) + " was passed");
-            stride vs;
-            vs.jumpCount = ntubes;
-            vs.oneBlockSize = ncols;
-            vs.jumpSize = nrows * ncols;
-            vs.sbJump_c = ntubes;
-            vs.sbJump_s = nrows * ncols;
-            auto iter = begin();
-            iter += row * ncols;
-
-            return MatrixView<decltype(iter)>(iter, ntubes, ncols, vs);
-        }
 
         void transpose() {
             std::vector<T> _temp(data_size);
@@ -786,35 +596,6 @@ namespace nims_n {
             return MatArray<T>(std::move(_temp), ncols, nrows);
         }
 
-        MatArray<T> getTransposed()
-        {
-            std::vector<T> _temp(data_size);
-
-            for (size_t rw{ 0 }; rw < nrows; rw++) {
-                for (size_t cl{ 0 }; cl < ncols; cl++) {
-                    const size_t tindex = (rw * ncols) + cl;
-                    const size_t cindex = (cl * nrows) + rw;
-                    _temp[cindex] = data[tindex];
-                }
-
-            }
-
-            return MatArray<T>(std::move(_temp), ncols, nrows);
-        }
-
-        void copyTo(MatArray<T>& other)
-        {
-            if (other.size() != data_size)
-            {
-                other.data.resize(data_size);
-                other.nrows = nrows;
-                other.ncols = ncols;
-                other.ntubes = ntubes;
-                other.data_size = data_size;
-            }
-            std::copy( begin(), end(), other.begin());
-        }
-
         void copyTo(MatArray<T>& other) const
         {
             if (other.size() != data_size)
@@ -839,7 +620,7 @@ namespace nims_n {
             normalize(1);
         }
 
-        MatArray<T> toDiag()
+        MatArray<T> toDiag() const
         {
            
             size_t dim = nrows * ncols;
@@ -863,7 +644,7 @@ namespace nims_n {
         }
 
 
-        MatArray<T> getDiag()
+        MatArray<T> getDiag() const
         {
 
             size_t dim = nrows * ncols;
