@@ -24,7 +24,8 @@ This repository contains a C++ implementation of the PEG–carbonate transport m
 The model solves the advection–dispersion equation with equilibrium/non-equilibrium adsorption and incorporates Langmuir-type adsorption with hysteresis:
 
 $$
-\frac{\partial (\theta c)}{\partial t} + \frac{\partial (q\,c)}{\partial x} = \frac{\partial}{\partial x}\!\Bigl(\theta D\,\frac{\partial c}{\partial x}\Bigr)- \rho\,\frac{\partial s}{\partial t}.
+\frac{\partial (\theta c)}{\partial t} + \frac{\partial (q\,c)}{\partial x}
+= \frac{\partial}{\partial x}\!\Bigl(\theta D\,\frac{\partial c}{\partial x}\Bigr)- \rho\,\frac{\partial s}{\partial t}.
 $$
 ---
 
