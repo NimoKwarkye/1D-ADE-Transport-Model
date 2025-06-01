@@ -435,13 +435,13 @@ void ntrans::TransportUI::loadModelParameters()
                 scenarioInputData[i][idx] = std::to_string(transportData->scenarios[i].paramValues[j]);
             }
         }
-        if (transportData->flowInterrupts.size() > 0) {
+        if (transportData->flowInterrupts.data.size() > 0) {
             interruptInputData.clear();
 
-            for (int i{ 0 }; i < transportData->flowInterrupts.size(); i++) {
+            for (int i{ 0 }; i < transportData->flowInterrupts.data.size(); i++) {
                 std::vector<std::string> oneInt;
-                oneInt.push_back(std::to_string(transportData->flowInterrupts[i].startTime));
-                oneInt.push_back(std::to_string(transportData->flowInterrupts[i].duration));
+                oneInt.push_back(std::to_string(transportData->flowInterrupts.data[i].startTime));
+                oneInt.push_back(std::to_string(transportData->flowInterrupts.data[i].duration));
 
                 /*if (transportData->uiControls.usePoreVols) {
                     double vc = transportData->columnParams.domainLength * transportData->transParams.waterContent * transportData->transParams.flowRate / 24.0;
@@ -991,6 +991,8 @@ void ntrans::TransportUI::ConfigWindow()
 
                             ImGui::SetNextItemWidth(220.0f);
                             ImGui::InputDouble("nf (-)", &transportData->transParams.adsorptionCapacity, 0.01f, 0.1f, "%.8f", inputTextActive);
+                            ImGui::SetNextItemWidth(220.0f);
+                            ImGui::InputDouble("Hysteresis Coefficient (-)", &transportData->transParams.hysteresisCoefficient, 0.01f, 0.1f, "%.8f", inputTextActive);
 
                             break;
                         }
@@ -1257,6 +1259,8 @@ void ntrans::TransportUI::SelectParamsWindow()
     if (transportData->columnParams.isothermType == 2) {
         ImGui::Checkbox(displayNames.eq_k.c_str(), &paramsSelector.isKf);
         ImGui::Checkbox(displayNames.eq_smax.c_str(), &paramsSelector.isnf);
+        ImGui::SameLine(250.0);
+        ImGui::Checkbox(displayNames.hysteresis.c_str(), &paramsSelector.isHysteresis);
 
     }
 
@@ -2147,15 +2151,15 @@ void ntrans::TransportUI::FlowInterruptsWindow()
         if (ImGui::Button("Clear Flow Interrupt") && !transportData->uiControls.isRunning) {
 
             interruptInputData.clear();
-            transportData->flowInterrupts.clear();
+            transportData->flowInterrupts.data.clear();
         }
 
         ImGui::SameLine();
         if (ImGui::Button("Save Flow Interrupt") && !transportData->uiControls.isRunning) {
-            transportData->flowInterrupts.clear();
+            transportData->flowInterrupts.data.clear();
 
             for (int i{ 0 }; i < interruptInputData.size(); i++) {
-                FlowInterrupts oneInterrupt;
+                FlowInterrupt oneInterrupt;
 
                 if (!interruptInputData[i][0].empty() && !interruptInputData[i][1].empty()) {
                     try
@@ -2180,7 +2184,7 @@ void ntrans::TransportUI::FlowInterruptsWindow()
                             oneInterrupt.duration = std::stod(interruptInputData[i][1]);
                         }*/
 
-                        transportData->flowInterrupts.push_back(oneInterrupt);
+                        transportData->flowInterrupts.data.push_back(oneInterrupt);
                     }
                     catch (const std::exception& emessage)
                     {
@@ -2192,7 +2196,7 @@ void ntrans::TransportUI::FlowInterruptsWindow()
 
                 }
             }
-
+            transportData->flowInterrupts.usePoreVol = transportData->uiControls.usePoreVols;
             uiEvents.showFlowInterruptsWindow = false;
         }
     }

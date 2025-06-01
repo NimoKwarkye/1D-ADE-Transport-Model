@@ -111,11 +111,11 @@ void ntrans::ModelADE::saveModelParameters(SimulationData* mdParams, std::string
 			out << "End Scenarios\n";
 		}
 
-		if (!mdParams->flowInterrupts.empty()) {
+		if (!mdParams->flowInterrupts.data.empty()) {
 			out << "Begin FlowInterrupts\n";
-
-			for (int i{ 0 }; i < mdParams->flowInterrupts.size(); i++) {
-				out << mdParams->flowInterrupts[i].startTime << "\t" << mdParams->flowInterrupts[i].duration << "\t";
+			out << "use_pv" << "\t" << mdParams->flowInterrupts.usePoreVol << "\n";
+			for (int i{ 0 }; i < mdParams->flowInterrupts.data.size(); i++) {
+				out << mdParams->flowInterrupts.data[i].startTime << "\t" << mdParams->flowInterrupts.data[i].duration << "\t";
 
 				out << "\n";
 			}
@@ -171,6 +171,7 @@ void ntrans::ModelADE::loadModelParameters(std::string fileName, SimulationData*
 	std::vector<std::string>savedScenarios{};
 	std::vector<std::string>savedFLT{};
 	std::vector<std::string>savedCustomSim{};
+	bool flowIntUsePV{ false };
 	in.open(fileName);
 	if (in.good()) {
 		//load space parameters
@@ -189,7 +190,18 @@ void ntrans::ModelADE::loadModelParameters(std::string fileName, SimulationData*
 			else if (line == "Begin FlowInterrupts") {
 				std::getline(in, line, '\n');
 				while (line != "End FlowInterrupts") {
-					savedFLT.push_back(line);
+					if (line.starts_with("use_pv"))
+					{
+						std::string pv_str;
+						std::stringstream pv_ss(line);
+						std::getline(pv_ss, pv_str, '\t');
+						std::getline(pv_ss, pv_str, '\t');
+						flowIntUsePV = std::stoi(pv_str);
+					}
+					else
+					{
+						savedFLT.push_back(line);
+					}
 					std::getline(in, line, '\n');
 				}
 			}
@@ -382,16 +394,17 @@ void ntrans::ModelADE::loadModelParameters(std::string fileName, SimulationData*
 		}
 
 		if (!savedFLT.empty()) {
-			loadParams->flowInterrupts.clear();
+			loadParams->flowInterrupts.data.clear();
+			loadParams->flowInterrupts.usePoreVol = flowIntUsePV;
 			for (int i{ 0 }; i < savedFLT.size(); i++) {
 				std::stringstream scn(savedFLT[i]);
-				FlowInterrupts flt;
+				FlowInterrupt flt;
 				std::getline(scn, line, '\t');
 				flt.startTime = std::stod(line);
 				std::getline(scn, line, '\t');
 				flt.duration = std::stod(line);
 
-				loadParams->flowInterrupts.push_back(flt);
+				loadParams->flowInterrupts.data.push_back(flt);
 			}
 		}
 
@@ -500,32 +513,45 @@ void ntrans::ModelADE::init()
 		simData->transParams.flowVelocity = simData->columnParams.domainLength *
 											simData->transParams.waterContent *
 											simData->transParams.flowRate / 24.0;
-		double eInttime{ 0.0 };
-		for(size_t i{0}; i < simData->flowInterrupts.size(); i++)
-		{
-			FlowInterrupts oneInt;
-			oneInt.duration = simData->flowInterrupts[i].duration * 
-								simData->transParams.waterContent *
-								simData->columnParams.domainLength /
-								simData->transParams.flowVelocity;
-			oneInt.startTime = (dp->domainLength * tp->waterContent * simData->flowInterrupts[i].startTime /
-								simData->transParams.flowVelocity) + eInttime;
-			eInttime += oneInt.duration;
-			intDataCopy.push_back(oneInt);
-		}
+		
 	}
 	else
 	{
 		simData->transParams.flowVelocity = simData->transParams.flowRate /
 											simData->columnParams.crossSectionArea;
 
-		for (size_t i{ 0 }; i < simData->flowInterrupts.size(); i++)
+		
+	}
+	if (simData->flowInterrupts.usePoreVol)
+	{
+		double eInttime{ 0.0 };
+		for (size_t i{ 0 }; i < simData->flowInterrupts.data.size(); i++)
 		{
-			FlowInterrupts oneInt;
-			oneInt.duration = simData->flowInterrupts[i].duration;
-			oneInt.startTime = simData->flowInterrupts[i].startTime;
+			FlowInterrupt oneInt;
+			oneInt.duration = simData->flowInterrupts.data[i].duration *
+				simData->transParams.waterContent *
+				simData->columnParams.domainLength /
+				simData->transParams.flowVelocity;
+			oneInt.startTime = (dp->domainLength * tp->waterContent * simData->flowInterrupts.data[i].startTime /
+				simData->transParams.flowVelocity) + eInttime;
+			eInttime += oneInt.duration;
 			intDataCopy.push_back(oneInt);
 		}
+	}
+	else
+	{
+		for (size_t i{ 0 }; i < simData->flowInterrupts.data.size(); i++)
+		{
+			FlowInterrupt oneInt;
+			oneInt.duration = simData->flowInterrupts.data[i].duration;
+			oneInt.startTime = simData->flowInterrupts.data[i].startTime;
+			intDataCopy.push_back(oneInt);
+		}
+	}
+	if (!simData->uiControls.isCalibration)
+	{
+		simData->simOut.damkohler_prd = damkohlerNumber(simData);
+		simData->simOut.retardation_coef = retardationCoeff(simData);
 	}
 	elaspedIntTime = 0.0;
 	tp->maxInputConc = max(tp->pulseConcentration, tp->maxInputConc);
@@ -1051,17 +1077,17 @@ void ntrans::ModelADE::createJcReactive(bool isJc)
 		{
 		case 1:
 
-			sorbed = langmuirIsotherm(c1, c1, simData->reactNodes[i].maxEqConcVal_tmp);
-			sorbedDelta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[i].maxEqConcVal_tmp + change);
+			sorbed = langmuirIsotherm(c1, simData->reactNodes[i].maxEqConcVal_tmp);
+			sorbedDelta = langmuirIsotherm(c1 + change, simData->reactNodes[i].maxEqConcVal_tmp + change);
 
 			
 			if (simData->reactNodes[i].maxKinConcVal > c1) {
-				sorbed_kin = langmuirIsotherm(c1, c1, simData->reactNodes[i].maxKinConcVal);
-				sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[i].maxKinConcVal + change);
+				sorbed_kin = langmuirIsotherm(c1, simData->reactNodes[i].maxKinConcVal);
+				sorbed_kin_delta = langmuirIsotherm(c1 + change, simData->reactNodes[i].maxKinConcVal + change);
 			}
 			else {
-				sorbed_kin = langmuirIsotherm(c1, c1, c1);
-				sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, c1 + change);
+				sorbed_kin = langmuirIsotherm(c1, c1);
+				sorbed_kin_delta = langmuirIsotherm(c1 + change, c1 + change);
 			}
 
 
@@ -1073,14 +1099,22 @@ void ntrans::ModelADE::createJcReactive(bool isJc)
 			sorbedKin = sorbed_kin * sbKineticConst; sorbedKin_dt = sorbed_kin_delta * sbKineticConst;
 			break;
 		case 2:
-			sorbed = freundlichIsotherm(c1);
-			sorbedDelta = freundlichIsotherm(c1 + change);
-			
+			sorbed = freundlichIsothermHysteresis(c1, simData->reactNodes[i].maxEqConcVal_tmp);
+			sorbedDelta = freundlichIsothermHysteresis(c1 + change, simData->reactNodes[i].maxEqConcVal_tmp + change);
+
+
+			if (simData->reactNodes[i].maxKinConcVal > c1) {
+				sorbed_kin = freundlichIsothermHysteresis(c1, simData->reactNodes[i].maxKinConcVal);
+				sorbed_kin_delta = freundlichIsothermHysteresis(c1 + change, simData->reactNodes[i].maxKinConcVal + change);
+			}
+			else {
+				sorbed_kin = freundlichIsothermHysteresis(c1, c1);
+				sorbed_kin_delta = freundlichIsothermHysteresis(c1 + change, c1 + change);
+			}
+						
 			sorbedEq = sorbed * sorbedEqMult; sorbedEq_dt = sorbedDelta * sorbedEqMult;
 			sorbedDegEq = sorbed * sbEqDeg; sorbedDegEq_dt = sorbedDelta * sbEqDeg;
 
-			sorbed_kin = freundlichIsotherm(c1);
-			sorbed_kin_delta = freundlichIsotherm(c1 + change);
 			sorbedEq_exch = sorbed_kin * sorbedKinEq_ex; sorbedEq_exch_dt = sorbed_kin_delta * sorbedKinEq_ex;
 			sorbedKin = sorbed_kin * sbKineticConst; sorbedKin_dt = sorbed_kin_delta * sbKineticConst;
 			break;
@@ -1190,17 +1224,17 @@ double ntrans::ModelADE::createJcReactiveImmobile( int loc, double mobile_c, dou
 		//	mdParams->Kl_rev, mdParams->Smax_store, loc, im->klArray, im->smaxArray, im->isforwardArray, mdParams->hysteresis);
 		//sorbedDelta = langmuirIsotherm(c1 + change, *im->klArray[loc], *im->smaxArray[loc]);
 
-		sorbed = langmuirIsotherm(c1, c1, simData->reactNodes[loc].imMaxEqConcVal_tmp);
-		sorbedDelta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxEqConcVal_tmp + change);
+		sorbed = langmuirIsotherm(c1, simData->reactNodes[loc].imMaxEqConcVal_tmp);
+		sorbedDelta = langmuirIsotherm(c1 + change, simData->reactNodes[loc].imMaxEqConcVal_tmp + change);
 
 
 		if (simData->reactNodes[loc].imMaxKinConcVal > c1) {
-			sorbed_kin = langmuirIsotherm(c1, c1, simData->reactNodes[loc].imMaxKinConcVal);
-			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, simData->reactNodes[loc].imMaxKinConcVal + change);
+			sorbed_kin = langmuirIsotherm(c1, simData->reactNodes[loc].imMaxKinConcVal);
+			sorbed_kin_delta = langmuirIsotherm(c1 + change, simData->reactNodes[loc].imMaxKinConcVal + change);
 		}
 		else {
-			sorbed_kin = langmuirIsotherm(c1, c1, c1);
-			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1, c1 + change);
+			sorbed_kin = langmuirIsotherm(c1, c1);
+			sorbed_kin_delta = langmuirIsotherm(c1 + change, c1 + change);
 		}
 
 
@@ -1213,14 +1247,22 @@ double ntrans::ModelADE::createJcReactiveImmobile( int loc, double mobile_c, dou
 
 		break;
 	case 2:
-		sorbed = freundlichIsotherm(c1);
-		sorbedDelta = freundlichIsotherm(c1 + change);
+		sorbed = freundlichIsothermHysteresis(c1, simData->reactNodes[loc].imMaxEqConcVal_tmp);
+		sorbedDelta = freundlichIsothermHysteresis(c1 + change, simData->reactNodes[loc].imMaxEqConcVal_tmp + change);
 
+
+		if (simData->reactNodes[loc].imMaxKinConcVal > c1) {
+			sorbed_kin = freundlichIsothermHysteresis(c1, simData->reactNodes[loc].imMaxKinConcVal);
+			sorbed_kin_delta = freundlichIsothermHysteresis(c1 + change, simData->reactNodes[loc].imMaxKinConcVal + change);
+		}
+		else {
+			sorbed_kin = freundlichIsothermHysteresis(c1, c1);
+			sorbed_kin_delta = freundlichIsothermHysteresis(c1 + change, c1 + change);
+		}
+		
 		sorbedEq = sorbed * sorbedEqMult; sorbedEq_dt = sorbedDelta * sorbedEqMult;
 		sorbedDegEq = sorbed * sbEqDeg; sorbedDegEq_dt = sorbedDelta * sbEqDeg;
 
-		sorbed_kin = freundlichIsotherm(c1);
-		sorbed_kin_delta = freundlichIsotherm(c1 + change);
 		sorbedEq_exch = sorbed_kin * sorbedKinEq_ex; sorbedEq_exch_dt = sorbed_kin_delta * sorbedKinEq_ex;
 		sorbedKin = sorbed_kin * sbKineticConst; sorbedKin_dt = sorbed_kin_delta * sbKineticConst;
 		break;
@@ -1311,13 +1353,13 @@ double ntrans::ModelADE::oneDFunctReactive(double c1, double c2, double c3, doub
 	return val;
 }
 
-double ntrans::ModelADE::langmuirIsotherm(double solConc, double eqConc, double maxSolConc)
+double ntrans::ModelADE::langmuirIsotherm(double solConc, double maxSolConc)
 {
-	if (eqConc > minConc)
+	/*if (eqConc > minConc)
 	{
 		return (tp->isothermConstant * tp->adsorptionCapacity * solConc) /
 			(tp->isothermConstant * solConc + std::pow(solConc / maxSolConc, tp->hysteresisCoefficient));
-	}
+	}*/
 
 	if (maxSolConc > 0.0 && tp->hysteresisCoefficient >= 1.0)
 	{
@@ -1334,6 +1376,16 @@ double ntrans::ModelADE::langmuirIsotherm(double solConc, double eqConc, double 
 		(tp->isothermConstant * solConc + 1.0);
 }
 
+double ntrans::ModelADE::freundlichIsothermHysteresis(double solConc, double maxSolConc)
+{
+	if(maxSolConc > 0.0)
+	{
+		return tp->isothermConstant * std::pow(maxSolConc, tp->adsorptionCapacity * tp->hysteresisCoefficient) *
+			std::pow(solConc, tp->adsorptionCapacity - tp->adsorptionCapacity * tp->hysteresisCoefficient);
+	}
+	return tp->isothermConstant * std::pow(solConc, tp->adsorptionCapacity);
+}
+
 double ntrans::ModelADE::freundlichIsotherm(double solConc)
 {
 	return tp->isothermConstant * std::pow(solConc, tp->adsorptionCapacity);
@@ -1346,7 +1398,16 @@ double ntrans::ModelADE::linearIsotherm(double solConc)
 
 double ntrans::ModelADE::getEqConcFromSorbed(double sorbed)
 {
-	return sorbed / (tp->adsorptionCapacity * tp->isothermConstant - sorbed * tp->isothermConstant);
+	switch (dp->isothermType)
+	{
+	case 1:
+		return sorbed / (tp->adsorptionCapacity * tp->isothermConstant - sorbed * tp->isothermConstant);
+		break;
+	case 2:
+		return std::pow(sorbed / tp->isothermConstant, 1.0 / tp->adsorptionCapacity);
+	default:
+		return sorbed / tp->isothermConstant;
+	}
 }
 
 void ntrans::ModelADE::updateSorbedKinPhase()

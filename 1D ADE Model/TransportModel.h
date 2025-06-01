@@ -160,10 +160,15 @@ namespace ntrans
 
 	};
 
-	struct FlowInterrupts
+	struct FlowInterrupt
 	{
 		double startTime{ 0.0 };
 		double duration{ 0.0 };
+	};
+	struct FlowInterrupts
+	{
+		std::vector<FlowInterrupt> data;
+		bool usePoreVol{ false };
 	};
 	struct UseLogScale
 	{
@@ -273,7 +278,7 @@ namespace ntrans
 		std::vector<double>sorbedAtPoint{};
 		std::vector<double>concAtPoint{};
 
-		inline void init(int timeCount, double simTime, double delta_t, double poreVolMult, std::vector<FlowInterrupts>& interruptData)
+		inline void init(int timeCount, double simTime, double delta_t, double poreVolMult, std::vector<FlowInterrupt>& interruptData)
 		{
 			totalDegradedMass = 0.0;
 			totalInflowMass = 0.0;
@@ -414,7 +419,7 @@ namespace ntrans
 		std::vector<ConservativeNodes> conserveNodes;
 		std::vector<ReactiveNodes> reactNodes;
 		std::vector<ScenarioParams>scenarios{};
-		std::vector<FlowInterrupts>flowInterrupts{ };
+		FlowInterrupts flowInterrupts;
 		std::vector<SensitivityAnalysisParams>sensitivityAnalysis{ SensitivityAnalysisParams() };
 		std::vector<MultiSimData>multiSimData{ };
 		std::vector<std::function<void(SimulationData*)>> multiSimDependencies{};
@@ -466,7 +471,8 @@ namespace ntrans
 		double solveImobilePhaseWithSorption(double mobile_c, int loc);
 		double oneDFunctReactive(double c1, double c2, double c3, double cOld, double mD, double uD,
 			double lD, double sbEq, double sbEqKn_ex, double sbKin, double sbDeg, int loc);
-		double langmuirIsotherm(double solConc, double eqConc, double maxSolConc);
+		double langmuirIsotherm(double solConc, double maxSolConc);
+		double freundlichIsothermHysteresis(double solConc, double maxSolConc);
 		double freundlichIsotherm(double solConc);
 		double linearIsotherm(double solConc);
 		double getEqConcFromSorbed(double sorbed);
@@ -487,7 +493,7 @@ namespace ntrans
 		DomainParameters* dp{ nullptr };
 		SimulationOutPut* sout{ nullptr };
 		TransportParameters initialTranspValues;
-		std::vector<FlowInterrupts> intDataCopy;
+		std::vector<FlowInterrupt> intDataCopy;
 
 		int nodeCount{ 1 };
 		int timeCount{ 1 };
@@ -615,6 +621,22 @@ namespace ntrans
 		}
 
 		return 0.0;
+	}
+
+	inline double damkohlerNumber(SimulationData* mdp)
+	{
+		double rd = retardationCoeff(mdp);
+		double velocity{ 0 };
+
+		if (mdp->uiControls.usePoreVols) {
+			velocity = mdp->columnParams.domainLength *
+				mdp->transParams.waterContent * mdp->transParams.flowRate / 24.0;
+		}
+		else {
+			velocity = mdp->transParams.flowRate;
+		}
+		double vt = (velocity / mdp->transParams.waterContent) / rd;
+		return mdp->transParams.reactionRateCoefficient * mdp->columnParams.domainLength / vt;
 	}
 
 
