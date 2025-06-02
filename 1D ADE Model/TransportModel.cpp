@@ -1501,9 +1501,9 @@ void ntrans::ModelADE::reactiveLoop()
 
 
 
-		simData->reactNodes[px].totalSorbed = (simData->reactNodes[px].prevEqSorbed + simData->reactNodes[px].imPrevEqSorbed) * 
+		simData->reactNodes[px].totalSorbed = simData->reactNodes[px].prevEqSorbed;/*(simData->reactNodes[px].prevEqSorbed + simData->reactNodes[px].imPrevEqSorbed) *
 			tp->eq_kinPartitionCoefficient + (simData->reactNodes[px].prevKinSorbed + simData->reactNodes[px].imPrevKinSorbed) *
-									(1.0 - tp->eq_kinPartitionCoefficient);
+									(1.0 - tp->eq_kinPartitionCoefficient);*/
 
 		sout->nodesConc[px] = simData->reactNodes[px].prevConcValue;
 
